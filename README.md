@@ -1,6 +1,6 @@
 # SeatRush
 
-SeatRush supports creating and viewing events, holding selected or best-available seats, releasing holds, and checking out. The web app and final Compose setup are not implemented yet.
+SeatRush supports creating and viewing events, holding selected or best-available seats, releasing holds, and checking out. The final Compose setup is not implemented yet.
 
 ## Local development
 
@@ -21,6 +21,16 @@ npm run start:dev
 ```
 
 The API listens on port 3000 by default; set `PORT` to use another local port if needed. Run migrations after installing or updating the API; they are not run automatically yet. The environment values in `.env.example` are examples; the API reads environment variables from the process and does not load that file automatically.
+
+In a second terminal, start the web app on port 5173:
+
+```sh
+cd web
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`. The web app proxies API requests to `http://127.0.0.1:3000`; set `API_URL` before starting Next.js if the API runs elsewhere. Usernames and active holds are stored in the browser tab’s session storage, so two windows can use different names. The app polls the seat map every five seconds.
 
 Interactive API documentation is available at `http://localhost:3000/docs`, and the OpenAPI JSON at `http://localhost:3000/docs-json`. Fan endpoints accept `X-Username` in the documentation UI.
 
@@ -48,7 +58,7 @@ Identify a fan with the `X-Username` header. Usernames are trimmed and case-sens
 
 ## Account API
 
-`GET /my-account` lists the orders for the username in `X-Username`. Each order includes its ID, hold and event IDs, event name, venue and time, purchased seat coordinates and prices, and total in agorot. Orders are sorted by event time; an account with no orders receives an empty array. Active and expired holds do not appear until checkout succeeds.
+`GET /my-tickets` lists the orders for the username in `X-Username`. Each order includes its ID, hold and event IDs, event name, venue and time, purchased seat coordinates and prices, and total in agorot. Orders are sorted by event time; an account with no orders receives an empty array. Active and expired holds do not appear until checkout succeeds.
 
 ## Tests
 

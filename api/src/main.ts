@@ -7,7 +7,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = new DocumentBuilder()
     .setTitle('SeatRush API')
-    .setDescription('Seat coordinates and zone numbers are zero-based. Fan requests use the X-Username header.')
+    .setDescription(
+      'Seat coordinates and zone numbers are zero-based. Fan requests use the X-Username header.',
+    )
     .setVersion('1.0')
     .build();
   const document = SwaggerModule.createDocument(app, config);

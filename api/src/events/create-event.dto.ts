@@ -1,22 +1,44 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayNotEmpty, IsArray, IsDateString, IsInt, IsObject, IsString, Matches, Max, Min, ValidateNested,
+  ArrayNotEmpty,
+  IsArray,
+  IsDateString,
+  IsInt,
+  IsObject,
+  IsString,
+  Matches,
+  Max,
+  Min,
+  ValidateNested,
 } from 'class-validator';
 
 class CreateZoneDto {
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 2147483647, description: 'Price in agorot.' })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 2147483647,
+    description: 'Price in agorot.',
+  })
   @IsInt()
   @Min(0)
   @Max(2147483647)
   priceAgorot!: number;
 
-  @ApiProperty({ type: 'integer', minimum: 0, description: 'Inclusive zero-based first row.' })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    description: 'Inclusive zero-based first row.',
+  })
   @IsInt()
   @Min(0)
   startRow!: number;
 
-  @ApiProperty({ type: 'integer', minimum: 0, description: 'Inclusive zero-based last row.' })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    description: 'Inclusive zero-based last row.',
+  })
   @IsInt()
   @Min(0)
   endRow!: number;
@@ -53,7 +75,12 @@ export class CreateEventDto {
   @Max(10000)
   seatsPerRow!: number;
 
-  @ApiProperty({ type: [CreateZoneDto], minItems: 1, description: 'Ranges must cover each row exactly once. Zone numbers follow array order.' })
+  @ApiProperty({
+    type: [CreateZoneDto],
+    minItems: 1,
+    description:
+      'Ranges must cover each row exactly once. Zone numbers follow array order.',
+  })
   @IsArray()
   @ArrayNotEmpty()
   @IsObject({ each: true })

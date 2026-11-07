@@ -18,11 +18,27 @@ export class EventsService {
         rowCount,
         seatsPerRow,
       });
-      const seats: Array<{ eventId: string; rowIndex: number; number: number; zoneIndex: number; priceAgorot: number }> = [];
+      const seats: Array<{
+        eventId: string;
+        rowIndex: number;
+        number: number;
+        zoneIndex: number;
+        priceAgorot: number;
+      }> = [];
       for (const [zoneIndex, zone] of input.zones.entries()) {
-        for (let rowIndex = zone.startRow; rowIndex <= zone.endRow; rowIndex++) {
+        for (
+          let rowIndex = zone.startRow;
+          rowIndex <= zone.endRow;
+          rowIndex++
+        ) {
           for (let number = 0; number < seatsPerRow; number++) {
-            seats.push({ eventId: event.id, rowIndex, number, zoneIndex, priceAgorot: zone.priceAgorot });
+            seats.push({
+              eventId: event.id,
+              rowIndex,
+              number,
+              zoneIndex,
+              priceAgorot: zone.priceAgorot,
+            });
           }
         }
       }
@@ -41,10 +57,13 @@ export class EventsService {
   }
 
   async detail(eventId: string) {
-    const event = await this.dataSource.getRepository(EventEntity).findOneBy({ id: eventId });
+    const event = await this.dataSource
+      .getRepository(EventEntity)
+      .findOneBy({ id: eventId });
     if (!event) throw new NotFoundException('Event not found.');
     const [seats, time] = await Promise.all([
-      this.dataSource.query(`
+      this.dataSource.query(
+        `
         SELECT seat.row_index AS "rowIndex", seat.number, seat.zone_index AS "zoneIndex",
           seat.price_agorot AS "priceAgorot",
           CASE WHEN orders.id IS NOT NULL THEN 'sold'
@@ -54,20 +73,54 @@ export class EventsService {
         LEFT JOIN holds AS hold ON hold.id = seat.hold_id AND hold.event_id = seat.event_id
         LEFT JOIN orders ON orders.hold_id = hold.id
         WHERE seat.event_id = $1 ORDER BY seat.row_index, seat.number
-      `, [eventId]) as Promise<Array<{ rowIndex: number; number: number; zoneIndex: number; priceAgorot: number; status: 'sold' | 'held' | 'available' }>>,
-      this.dataSource.query('SELECT clock_timestamp() AS now') as Promise<Array<{ now: Date }>>,
+      `,
+        [eventId],
+      ) as Promise<
+        Array<{
+          rowIndex: number;
+          number: number;
+          zoneIndex: number;
+          priceAgorot: number;
+          status: 'sold' | 'held' | 'available';
+        }>
+      >,
+      this.dataSource.query('SELECT clock_timestamp() AS now') as Promise<
+        Array<{ now: Date }>
+      >,
     ]);
-    const rows: Array<{ rowIndex: number; zoneNumber: number; seats: Array<{ seatNumber: number; status: 'sold' | 'held' | 'available' }> }> = [];
-    const zones: Array<{ number: number; priceAgorot: number; startRow: number; endRow: number }> = [];
+    const rows: Array<{
+      rowIndex: number;
+      zoneNumber: number;
+      seats: Array<{
+        seatNumber: number;
+        status: 'sold' | 'held' | 'available';
+      }>;
+    }> = [];
+    const zones: Array<{
+      number: number;
+      priceAgorot: number;
+      startRow: number;
+      endRow: number;
+    }> = [];
     for (const seat of seats) {
       if (!rows[seat.rowIndex]) {
-        rows[seat.rowIndex] = { rowIndex: seat.rowIndex, zoneNumber: seat.zoneIndex, seats: [] };
+        rows[seat.rowIndex] = {
+          rowIndex: seat.rowIndex,
+          zoneNumber: seat.zoneIndex,
+          seats: [],
+        };
       }
-      rows[seat.rowIndex].seats.push({ seatNumber: seat.number, status: seat.status });
+      rows[seat.rowIndex].seats.push({
+        seatNumber: seat.number,
+        status: seat.status,
+      });
 
       if (!zones[seat.zoneIndex]) {
         zones[seat.zoneIndex] = {
-          number: seat.zoneIndex, priceAgorot: seat.priceAgorot, startRow: seat.rowIndex, endRow: seat.rowIndex,
+          number: seat.zoneIndex,
+          priceAgorot: seat.priceAgorot,
+          startRow: seat.rowIndex,
+          endRow: seat.rowIndex,
         };
       }
       zones[seat.zoneIndex].endRow = seat.rowIndex;

@@ -8,13 +8,23 @@ export class BestAvailableDto {
   @Max(4)
   count!: number;
 
-  @ApiPropertyOptional({ type: 'integer', minimum: 0, nullable: true, description: 'Zero-based zone number.' })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    nullable: true,
+    description: 'Zero-based zone number.',
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
   zoneNumber?: number;
 
-  @ApiPropertyOptional({ type: 'integer', minimum: 0, nullable: true, description: 'Maximum price per seat in agorot.' })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    nullable: true,
+    description: 'Maximum price per seat in agorot.',
+  })
   @IsOptional()
   @IsInt()
   @Min(0)

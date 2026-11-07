@@ -15,7 +15,10 @@ import { HoldsService } from './holds/holds.service';
     AccountService,
     EventsService,
     HoldsService,
-    { provide: APP_PIPE, useFactory: () => new ValidationPipe({ transform: true }) },
+    {
+      provide: APP_PIPE,
+      useFactory: () => new ValidationPipe({ transform: true }),
+    },
   ],
 })
 export class AppModule {}
