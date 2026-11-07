@@ -44,6 +44,10 @@ Identify a fan with the `X-Username` header. Usernames are trimmed and case-sens
 
 `HOLD_TTL_SECONDS` controls the lifetime (default 300) and `MAX_SEATS_PER_USER` controls the per-event limit (default 4). Both are positive integers read when the API starts. Released holds are deleted immediately; expired holds remain in the database but no longer block their seats. The limit also accounts for seats linked to an order.
 
+## Account API
+
+`GET /my-account` lists the orders for the username in `X-Username`. Each order includes its ID, hold and event IDs, event name, venue and time, purchased seat coordinates and prices, and total in agorot. Orders are sorted by event time; an account with no orders receives an empty array. Active and expired holds do not appear until checkout succeeds.
+
 ## Tests
 
 With `DATABASE_URL` set, run the test command from the project root:

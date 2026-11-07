@@ -142,6 +142,54 @@ describe('best available and checkout with PostgreSQL', () => {
     expect(await database.query('SELECT id FROM holds WHERE id = $1', [hold.body.id])).toHaveLength(1);
   });
 
+  test('my account lists only the username’s checked-out orders with event and ticket details', async () => {
+    const eventId = await createEvent();
+    const secondEventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds`;
+    const firstHold = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'account-owner')
+      .send({ seats: [{ rowIndex: 1, seatNumber: 1 }, { rowIndex: 0, seatNumber: 0 }] }).expect(201);
+    const firstOrder = await request(app.getHttpServer()).post(`${endpoint}/${firstHold.body.id}/checkout`)
+      .set('X-Username', 'account-owner').expect(201);
+    const secondHold = await request(app.getHttpServer()).post(`/events/${secondEventId}/holds`).set('X-Username', 'account-owner')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 2 }] }).expect(201);
+    const secondOrder = await request(app.getHttpServer()).post(`/events/${secondEventId}/holds/${secondHold.body.id}/checkout`)
+      .set('X-Username', 'account-owner').expect(201);
+    const otherHold = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'someone-else')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 3 }] }).expect(201);
+    await request(app.getHttpServer()).post(`${endpoint}/${otherHold.body.id}/checkout`).set('X-Username', 'someone-else').expect(201);
+    await request(app.getHttpServer()).post(endpoint).set('X-Username', 'account-owner')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 4 }] }).expect(201);
+    await database.query("UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1", [firstHold.body.id]);
+
+    await request(app.getHttpServer()).get('/my-account').expect(400);
+    const empty = await request(app.getHttpServer()).get('/my-account').set('X-Username', 'no-orders').expect(200);
+    expect(empty.body).toEqual([]);
+    const account = await request(app.getHttpServer()).get('/my-account').set('X-Username', ' account-owner ').expect(200);
+    expect(account.body).toHaveLength(2);
+    expect(account.body).toEqual(expect.arrayContaining([
+      {
+        id: firstOrder.body.id, holdId: firstHold.body.id, eventId,
+        event: { name: 'Show', venue: 'Hall', eventTime: '2099-01-01T00:00:00.000Z' },
+        seats: [
+          { rowIndex: 0, seatNumber: 0, priceAgorot: 2000 },
+          { rowIndex: 1, seatNumber: 1, priceAgorot: 1000 },
+        ],
+        totalAgorot: 3000,
+      },
+      {
+        id: secondOrder.body.id, holdId: secondHold.body.id, eventId: secondEventId,
+        event: { name: 'Show', venue: 'Hall', eventTime: '2099-01-01T00:00:00.000Z' },
+        seats: [{ rowIndex: 0, seatNumber: 2, priceAgorot: 2000 }],
+        totalAgorot: 2000,
+      },
+    ]));
+    const other = await request(app.getHttpServer()).get('/my-account').set('X-Username', 'someone-else').expect(200);
+    expect(other.body).toHaveLength(1);
+    expect(other.body[0].holdId).toBe(otherHold.body.id);
+    const caseSensitive = await request(app.getHttpServer()).get('/my-account').set('X-Username', 'Account-owner').expect(200);
+    expect(caseSensitive.body).toEqual([]);
+  });
+
   test('checkout wins against a competing hold for an unexpired seat', async () => {
     const eventId = await createEvent();
     const endpoint = `/events/${eventId}/holds`;
