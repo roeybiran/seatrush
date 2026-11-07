@@ -1,6 +1,6 @@
 # SeatRush
 
-SeatRush currently supports creating and viewing events, holding selected seats, and releasing holds. Best available, checkout, the web app, API documentation, and the final Compose setup are not implemented yet.
+SeatRush supports creating and viewing events, holding selected or best-available seats, releasing holds, and checking out. The web app, API documentation, and final Compose setup are not implemented yet.
 
 ## Local development
 
@@ -38,7 +38,11 @@ curl -X POST http://localhost:3000/events \
 
 Identify a fan with the `X-Username` header. Usernames are trimmed and case-sensitive; they are not authenticated and can be impersonated. `POST /events/:eventId/holds` accepts `{ "seats": [{ "rowIndex": 0, "seatNumber": 0 }] }` and holds one to four distinct seats together as one request. Row indexes and seat numbers are zero-based; the frontend will show seat numbers starting at 1. The response includes a hold ID, coordinates, prices, expiry, and server time. `DELETE /events/:eventId/holds/:holdId` releases an active hold belonging to that username.
 
-`HOLD_TTL_SECONDS` controls the lifetime (default 300) and `MAX_SEATS_PER_USER` controls the per-event limit (default 4). Both are positive integers read when the API starts. Released holds are deleted immediately; expired holds remain in the database but no longer block their seats. The limit also accounts for seats linked to an order, but checkout is not implemented yet.
+`POST /events/:eventId/holds/best-available` accepts `{ "count": 2, "zoneNumber": 0, "maxPriceAgorot": 20000 }`; the zone and maximum price are optional. It holds consecutive seats in the closest eligible row, preferring the center and then the lower seat number. The response is the same as for a selected-seat hold.
+
+`POST /events/:eventId/holds/:holdId/checkout` creates an order for an unexpired hold owned by the supplied username. Its response contains the order ID, hold and event IDs, seat coordinates and prices, and total in agorot. Repeating checkout returns the same order, even after the hold has expired.
+
+`HOLD_TTL_SECONDS` controls the lifetime (default 300) and `MAX_SEATS_PER_USER` controls the per-event limit (default 4). Both are positive integers read when the API starts. Released holds are deleted immediately; expired holds remain in the database but no longer block their seats. The limit also accounts for seats linked to an order.
 
 ## Tests
 
@@ -49,4 +53,4 @@ cd api
 npm test
 ```
 
-The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. They use temporary PostgreSQL schemas and remove them when complete. The configured database user needs permission to create schemas. Tests do not use or erase the existing event tables. Checkout and best-available tests remain to be added.
+The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. They use temporary PostgreSQL schemas and remove them when complete. The configured database user needs permission to create schemas. Tests do not use or erase the existing event tables. The tests cover best-available ranking and filters, concurrent seat selection, checkout retries, ownership, expiry, and competing requests.

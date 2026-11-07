@@ -1,0 +1,170 @@
+import 'reflect-metadata';
+import { randomUUID } from 'node:crypto';
+import { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { DataSource } from 'typeorm';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+
+describe('best available and checkout with PostgreSQL', () => {
+  let admin: DataSource;
+  let database: DataSource;
+  let app: INestApplication;
+  let schemaCreated = false;
+  const schema = `seatrush_test_${randomUUID().replaceAll('-', '')}`;
+  const originalUrl = process.env.DATABASE_URL;
+  const originalTtl = process.env.HOLD_TTL_SECONDS;
+  const originalLimit = process.env.MAX_SEATS_PER_USER;
+
+  beforeAll(async () => {
+    if (!originalUrl) throw new Error('Set DATABASE_URL to a PostgreSQL database where the user can create schemas.');
+    admin = new DataSource({ type: 'postgres', url: originalUrl });
+    await admin.initialize();
+    await admin.query(`CREATE SCHEMA "${schema}"`);
+    schemaCreated = true;
+    const url = new URL(originalUrl);
+    url.searchParams.set('options', `-c search_path=${schema}`);
+    process.env.DATABASE_URL = url.toString();
+    process.env.HOLD_TTL_SECONDS = '300';
+    process.env.MAX_SEATS_PER_USER = '4';
+    const { AppModule } = await import('../src/app.module');
+    const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = module.createNestApplication({ logger: false });
+    database = app.get(DataSource);
+    await database.runMigrations();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    if (app) await app.close();
+    if (admin?.isInitialized) {
+      try {
+        if (schemaCreated) await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
+      } finally {
+        await admin.destroy();
+      }
+    }
+    if (originalUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = originalUrl;
+    if (originalTtl === undefined) delete process.env.HOLD_TTL_SECONDS; else process.env.HOLD_TTL_SECONDS = originalTtl;
+    if (originalLimit === undefined) delete process.env.MAX_SEATS_PER_USER; else process.env.MAX_SEATS_PER_USER = originalLimit;
+  });
+
+  async function createEvent(dropTime = '2000-01-01T00:00:00Z') {
+    const response = await request(app.getHttpServer()).post('/events').send({
+      name: 'Show', venue: 'Hall', eventTime: '2099-01-01T00:00:00Z', dropTime,
+      rowCount: 2, seatsPerRow: 8,
+      zones: [{ startRow: 0, endRow: 0, priceAgorot: 2000 }, { startRow: 1, endRow: 1, priceAgorot: 1000 }],
+    }).expect(201);
+    return response.body.id as string;
+  }
+
+  test('chooses the nearest row, then middle and lower starting seat, including the brief example', async () => {
+    const eventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds`;
+    const middle = await request(app.getHttpServer()).post(`${endpoint}/best-available`).set('X-Username', 'middle').send({ count: 2 }).expect(201);
+    expect(middle.body.seats.map((seat: { seatNumber: number }) => seat.seatNumber)).toEqual([3, 4]);
+    await request(app.getHttpServer()).delete(`${endpoint}/${middle.body.id}`).set('X-Username', 'middle').expect(200);
+    for (const start of [0, 4]) {
+      await request(app.getHttpServer()).post(endpoint).set('X-Username', `row-${start}`).send({
+        seats: Array.from({ length: 4 }, (_, offset) => ({ rowIndex: 0, seatNumber: start + offset })),
+      }).expect(201);
+    }
+    const sold = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'sold').send({
+      seats: [{ rowIndex: 1, seatNumber: 3 }, { rowIndex: 1, seatNumber: 4 }],
+    }).expect(201);
+    await request(app.getHttpServer()).post(`${endpoint}/${sold.body.id}/checkout`).set('X-Username', 'sold').expect(201);
+    const best = await request(app.getHttpServer()).post(`${endpoint}/best-available`).set('X-Username', 'fan').send({ count: 2 }).expect(201);
+    expect(best.body.seats).toEqual([
+      { rowIndex: 1, seatNumber: 1, priceAgorot: 1000 },
+      { rowIndex: 1, seatNumber: 2, priceAgorot: 1000 },
+    ]);
+  });
+
+  test('applies filters, validates requests, drop time and seat limit', async () => {
+    const eventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds/best-available`;
+    for (const body of [{ count: 0 }, { count: 5 }, { count: 1.5 }, { count: 1, zoneNumber: -1 }, { count: 1, maxPriceAgorot: -1 }]) {
+      await request(app.getHttpServer()).post(endpoint).set('X-Username', 'fan').send(body).expect(400);
+    }
+    const best = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'fan').send({ count: 3, zoneNumber: 1, maxPriceAgorot: 1000 }).expect(201);
+    expect(best.body.seats.map((seat: { rowIndex: number; seatNumber: number }) => [seat.rowIndex, seat.seatNumber])).toEqual([[1, 2], [1, 3], [1, 4]]);
+    await request(app.getHttpServer()).post(endpoint).set('X-Username', 'fan').send({ count: 2 }).expect(409);
+    await request(app.getHttpServer()).post(endpoint).set('X-Username', 'other').send({ count: 1, zoneNumber: 0, maxPriceAgorot: 1000 }).expect(409);
+    await request(app.getHttpServer()).post(endpoint).set('X-Username', 'other').send({ count: 1, zoneNumber: 9999999999 }).expect(409);
+    const future = await createEvent('2099-01-01T00:00:00Z');
+    await request(app.getHttpServer()).post(`/events/${future}/holds/best-available`).set('X-Username', 'fan').send({ count: 1 }).expect(409);
+  });
+
+  test('concurrent best-available requests do not assign the same seats', async () => {
+    const eventId = await createEvent();
+    const responses = await Promise.all(Array.from({ length: 12 }, (_, index) =>
+      request(app.getHttpServer()).post(`/events/${eventId}/holds/best-available`)
+        .set('X-Username', `fan-${index}`).send({ count: 2 }),
+    ));
+    expect(responses.filter((response) => response.status === 201)).toHaveLength(6);
+    expect(responses.filter((response) => response.status === 409)).toHaveLength(6);
+    const coordinates = responses.filter((response) => response.status === 201)
+      .flatMap((response) => response.body.seats.map((seat: { rowIndex: number; seatNumber: number }) => `${seat.rowIndex}:${seat.seatNumber}`));
+    expect(new Set(coordinates).size).toBe(12);
+  });
+
+  test('checkout is owner-only, atomic and idempotent even after expiry', async () => {
+    const eventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds`;
+    const hold = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'owner').send({ seats: [
+      { rowIndex: 0, seatNumber: 0 }, { rowIndex: 1, seatNumber: 0 },
+    ] }).expect(201);
+    const checkout = `${endpoint}/${hold.body.id}/checkout`;
+    await request(app.getHttpServer()).post(checkout).set('X-Username', 'other').expect(403);
+    const responses = await Promise.all(Array.from({ length: 12 }, () => request(app.getHttpServer()).post(checkout).set('X-Username', 'owner')));
+    expect(responses.every((response) => response.status === 201)).toBe(true);
+    expect(responses.every((response) => JSON.stringify(response.body) === JSON.stringify(responses[0].body))).toBe(true);
+    expect(responses[0].body).toMatchObject({ holdId: hold.body.id, eventId, totalAgorot: 3000, seats: hold.body.seats });
+    expect(await database.query('SELECT id FROM orders WHERE hold_id = $1', [hold.body.id])).toHaveLength(1);
+    await database.query("UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1", [hold.body.id]);
+    const retry = await request(app.getHttpServer()).post(checkout).set('X-Username', 'owner').expect(201);
+    expect(retry.body).toEqual(responses[0].body);
+    const map = await request(app.getHttpServer()).get(`/events/${eventId}`).expect(200);
+    expect(map.body.rows[0].seats[0].status).toBe('sold');
+    await request(app.getHttpServer()).post(endpoint).set('X-Username', 'other').send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }).expect(409);
+    await request(app.getHttpServer()).delete(`${endpoint}/${hold.body.id}`).set('X-Username', 'owner').expect(409);
+  });
+
+  test('best available can reclaim an expired hold without cleanup', async () => {
+    const eventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds`;
+    const hold = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'first')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 3 }, { rowIndex: 0, seatNumber: 4 }] }).expect(201);
+    await database.query("UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1", [hold.body.id]);
+    const best = await request(app.getHttpServer()).post(`${endpoint}/best-available`)
+      .set('X-Username', 'second').send({ count: 2 }).expect(201);
+    expect(best.body.seats.map((seat: { seatNumber: number }) => seat.seatNumber)).toEqual([3, 4]);
+    expect(await database.query('SELECT id FROM holds WHERE id = $1', [hold.body.id])).toHaveLength(1);
+  });
+
+  test('checkout wins against a competing hold for an unexpired seat', async () => {
+    const eventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds`;
+    const hold = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'owner')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }).expect(201);
+    const results = await Promise.all([
+      request(app.getHttpServer()).post(`${endpoint}/${hold.body.id}/checkout`).set('X-Username', 'owner'),
+      request(app.getHttpServer()).post(endpoint).set('X-Username', 'other').send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }),
+    ]);
+    expect(results.map((response) => response.status)).toEqual([201, 409]);
+    expect(await database.query('SELECT id FROM orders WHERE hold_id = $1', [hold.body.id])).toHaveLength(1);
+  });
+
+  test('expired holds cannot be checked out even when the seats are re-held', async () => {
+    const eventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds`;
+    const hold = await request(app.getHttpServer()).post(endpoint).set('X-Username', 'owner').send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }).expect(201);
+    await database.query("UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1", [hold.body.id]);
+    const results = await Promise.all([
+      request(app.getHttpServer()).post(`${endpoint}/${hold.body.id}/checkout`).set('X-Username', 'owner'),
+      request(app.getHttpServer()).post(endpoint).set('X-Username', 'other').send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }),
+    ]);
+    expect(results.map((response) => response.status)).toEqual([409, 201]);
+    expect(await database.query('SELECT id FROM orders WHERE hold_id = $1', [hold.body.id])).toHaveLength(0);
+  });
+});
