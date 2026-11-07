@@ -25,7 +25,7 @@ export class EventEntity {
 }
 
 @Entity('zones')
-@Unique(['eventId', 'name'])
+@Unique(['eventId', 'zoneIndex'])
 export class ZoneEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -33,8 +33,8 @@ export class ZoneEntity {
   @Column('uuid', { name: 'event_id' })
   eventId!: string;
 
-  @Column('text')
-  name!: string;
+  @Column('int', { name: 'zone_index' })
+  zoneIndex!: number;
 
   @Column('int', { name: 'price_agorot' })
   priceAgorot!: number;
@@ -42,7 +42,6 @@ export class ZoneEntity {
 
 @Entity('event_rows')
 @Unique(['eventId', 'rowIndex'])
-@Unique(['eventId', 'label'])
 export class EventRowEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -56,8 +55,6 @@ export class EventRowEntity {
   @Column('int', { name: 'row_index' })
   rowIndex!: number;
 
-  @Column('text')
-  label!: string;
 }
 
 @Entity('seats')

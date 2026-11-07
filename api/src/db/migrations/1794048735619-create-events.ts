@@ -17,9 +17,9 @@ export class CreateEvents1794048735619 implements MigrationInterface {
       CREATE TABLE zones (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-        name text NOT NULL CHECK (length(trim(name)) > 0),
+        zone_index integer NOT NULL CHECK (zone_index >= 0),
         price_agorot integer NOT NULL CHECK (price_agorot >= 0),
-        UNIQUE (event_id, name),
+        UNIQUE (event_id, zone_index),
         UNIQUE (event_id, id)
       )
     `);
@@ -28,10 +28,8 @@ export class CreateEvents1794048735619 implements MigrationInterface {
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
         zone_id uuid NOT NULL,
-        row_index integer NOT NULL CHECK (row_index > 0),
-        label text NOT NULL CHECK (length(trim(label)) > 0),
+        row_index integer NOT NULL CHECK (row_index >= 0),
         UNIQUE (event_id, row_index),
-        UNIQUE (event_id, label),
         UNIQUE (event_id, id),
         FOREIGN KEY (event_id, zone_id) REFERENCES zones(event_id, id)
       )

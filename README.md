@@ -24,15 +24,15 @@ The API listens on port 3000 by default; set `PORT` to use another local port if
 
 ## Events API
 
-`POST /events` creates an event, its zones, rows, and seats atomically. All rows have the same number of seats, and each row must appear in exactly one zone. Times are ISO 8601 timestamps with a timezone and prices are integer agorot.
+`POST /events` creates an event, its zones, rows, and seats atomically. Each zone specifies an inclusive, zero-based `startRow` and `endRow`; ranges must cover every row exactly once. Zones are numbered from zero in request order. Times are ISO 8601 dates; date-time values without an offset use the API server's local timezone. Prices are integer agorot.
 
 ```sh
 curl -X POST http://localhost:3000/events \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Opening Night","venue":"Main Hall","eventTime":"2030-07-01T20:00:00Z","dropTime":"2030-06-01T10:00:00Z","rowCount":3,"seatsPerRow":8,"zones":[{"name":"Front","priceAgorot":20000,"rows":["A"]},{"name":"Back","priceAgorot":12000,"rows":["B","C"]}]}'
+  -d '{"name":"Opening Night","venue":"Main Hall","eventTime":"2030-07-01T20:00:00Z","dropTime":"2030-06-01T10:00:00Z","rowCount":3,"seatsPerRow":8,"zones":[{"startRow":0,"endRow":0,"priceAgorot":20000},{"startRow":1,"endRow":2,"priceAgorot":12000}]}'
 ```
 
-`GET /events` lists events, and `GET /events/:eventId` returns a seat map grouped into ordered rows with zone IDs, prices, and server time. Seats currently report `available`; holds and sales are not implemented. See [DECISIONS.md](DECISIONS.md) for input limits and assumptions.
+`GET /events` lists events, and `GET /events/:eventId` returns a seat map grouped into ordered rows with zone numbers, prices, and server time. Seats currently report `available`; holds and sales are not implemented. See [DECISIONS.md](DECISIONS.md) for input limits and assumptions.
 
 ## Tests
 
@@ -43,4 +43,4 @@ cd api
 npm test
 ```
 
-The event API tests use a temporary PostgreSQL schema and remove it when complete. The configured database user needs permission to create schemas. Tests do not use or erase the existing event tables. The hold and real-PostgreSQL contention tests required by the assignment will be added with their features.
+The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. The event API tests use a temporary PostgreSQL schema and remove it when complete. The configured database user needs permission to create schemas. Tests do not use or erase the existing event tables. The hold and real-PostgreSQL contention tests required by the assignment will be added with their features.
