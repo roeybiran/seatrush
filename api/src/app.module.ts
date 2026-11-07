@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEntity, EventRowEntity, SeatEntity, ZoneEntity } from './events/entities';
 import { EventsController } from './events/events.controller';
 import { EventsService } from './events/events.service';
-import { CreateEvents1730000000000 } from './migrations/1730000000000-create-events';
+import { CreateEvents1794048735619 } from './migrations/1794048735619-create-events';
 
 @Module({
   imports: [
@@ -11,7 +11,7 @@ import { CreateEvents1730000000000 } from './migrations/1730000000000-create-eve
       type: 'postgres',
       url: process.env.DATABASE_URL,
       entities: [EventEntity, ZoneEntity, EventRowEntity, SeatEntity],
-      migrations: [CreateEvents1730000000000],
+      migrations: [CreateEvents1794048735619],
       synchronize: false,
       retryAttempts: 1,
     }),

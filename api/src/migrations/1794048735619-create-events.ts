@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class CreateEvents1730000000000 implements MigrationInterface {
+export class CreateEvents1794048735619 implements MigrationInterface {
   async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE events (
@@ -29,7 +29,7 @@ export class CreateEvents1730000000000 implements MigrationInterface {
         event_id uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
         zone_id uuid NOT NULL,
         row_index integer NOT NULL CHECK (row_index > 0),
-        label text NOT NULL,
+        label text NOT NULL CHECK (length(trim(label)) > 0),
         UNIQUE (event_id, row_index),
         UNIQUE (event_id, label),
         UNIQUE (event_id, id),
@@ -42,7 +42,7 @@ export class CreateEvents1730000000000 implements MigrationInterface {
         event_id uuid NOT NULL,
         row_id uuid NOT NULL,
         number integer NOT NULL CHECK (number > 0),
-        UNIQUE (event_id, row_id, number),
+        UNIQUE (row_id, number),
         FOREIGN KEY (event_id, row_id) REFERENCES event_rows(event_id, id) ON DELETE CASCADE
       )
     `);

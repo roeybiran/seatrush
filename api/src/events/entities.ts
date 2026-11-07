@@ -61,7 +61,7 @@ export class EventRowEntity {
 }
 
 @Entity('seats')
-@Unique(['eventId', 'rowId', 'number'])
+@Unique(['rowId', 'number'])
 export class SeatEntity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
