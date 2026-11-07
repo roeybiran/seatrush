@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
     "module": "commonjs",
     "target": "ES2022",
     "moduleResolution": "node",
@@ -9,5 +11,6 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
-  }
+  },
+  "include": ["src/**/*.ts"]
 }

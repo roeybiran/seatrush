@@ -6,10 +6,10 @@
     "node": "^22.13.0 || >=24.11.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "start:dev": "ts-node src/main.ts",
-    "test": "tsc -p tsconfig.test.json && node --test .test-dist/test/*.test.js"
+    "test": "mkdir -p .test-dist/test && tsc -p tsconfig.test.json && node --test .test-dist/test"
   },
   "dependencies": {
     "@nestjs/common": "^12.4.0",

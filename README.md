@@ -23,11 +23,11 @@ The API listens on port 3000 by default; set `PORT` to use another local port if
 
 ## Tests
 
-With PostgreSQL running and `DATABASE_URL` set as above, run:
+Run the test command from the project root:
 
 ```sh
 cd api
 npm test
 ```
 
-The current integration test starts the NestJS application context and runs a read-only query through its TypeORM connection. Use a dedicated development or test database. The hold and concurrency tests will be added with their features.
+There are currently no tests. The hold and real-PostgreSQL concurrency tests required by the assignment will be added with their features.
