@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -57,6 +58,44 @@ describe('best available and checkout with PostgreSQL', () => {
     }).expect(201);
     return response.body.id as string;
   }
+
+  test('OpenAPI describes endpoint bodies, username headers, responses and errors', () => {
+    const document = SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('SeatRush API').build());
+    const paths = document.paths;
+    expect(Object.keys(paths).sort()).toEqual([
+      '/events', '/events/{eventId}', '/events/{eventId}/holds',
+      '/events/{eventId}/holds/best-available', '/events/{eventId}/holds/{holdId}',
+      '/events/{eventId}/holds/{holdId}/checkout', '/my-account',
+    ].sort());
+    const create = paths['/events']!.post!;
+    expect(create.requestBody).toBeDefined();
+    expect(create.responses['201']).toBeDefined();
+    expect(create.responses['400']).toBeDefined();
+    const hold = paths['/events/{eventId}/holds']!.post!;
+    expect(hold.requestBody).toBeDefined();
+    expect(hold.parameters).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'X-Username', in: 'header', required: true })]));
+    for (const status of ['201', '400', '404', '409']) expect(hold.responses[status]).toBeDefined();
+    const checkout = paths['/events/{eventId}/holds/{holdId}/checkout']!.post!;
+    for (const status of ['201', '400', '403', '404', '409']) expect(checkout.responses[status]).toBeDefined();
+    const schemas = document.components!.schemas!;
+    expect(schemas.CreateEventDto).toMatchObject({ required: expect.arrayContaining(['name', 'zones', 'rowCount']) });
+    expect(schemas.CreateHoldDto).toMatchObject({ required: ['seats'] });
+    expect(schemas.BestAvailableDto).toMatchObject({
+      required: ['count'],
+      properties: { count: { type: 'integer', minimum: 1, maximum: 4 }, zoneNumber: { type: 'integer', minimum: 0, nullable: true } },
+    });
+    expect(schemas.CreateHoldDto).toMatchObject({ properties: { seats: { type: 'array', minItems: 1, maxItems: 4 } } });
+    expect(schemas.CreateEventDto).toMatchObject({ properties: { rowCount: { type: 'integer', minimum: 1, maximum: 702 } } });
+    expect(schemas.EventDetailResponseDto).toMatchObject({
+      required: expect.arrayContaining(['id', 'name', 'serverTime', 'zones', 'rows']),
+      properties: { zones: { type: 'array' }, rows: { type: 'array' } },
+    });
+    expect(schemas.HoldResponseDto).toMatchObject({ required: expect.arrayContaining(['id', 'seats', 'expiresAt', 'serverTime']) });
+    expect(schemas.OrderResponseDto).toMatchObject({ required: expect.arrayContaining(['id', 'holdId', 'seats', 'totalAgorot']) });
+    expect(schemas.AccountOrderResponseDto).toMatchObject({ required: expect.arrayContaining(['id', 'event', 'seats', 'totalAgorot']) });
+    expect(schemas.ReleaseHoldResponseDto).toMatchObject({ required: ['id', 'status'] });
+    expect(hold.responses['201']).toMatchObject({ content: { 'application/json': { schema: { $ref: '#/components/schemas/HoldResponseDto' } } } });
+  });
 
   test('chooses the nearest row, then middle and lower starting seat, including the brief example', async () => {
     const eventId = await createEvent();

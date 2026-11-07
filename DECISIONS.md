@@ -18,4 +18,4 @@
 
 ## Remaining work
 
-Implement the fan UI, API docs, automatic startup and demo seeding, and the remaining assignment tests. Production authentication and scaling are outside the current milestone.
+Implement the fan UI, automatic startup and demo seeding, and the remaining assignment tests. Production authentication and scaling are outside the current milestone.

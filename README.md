@@ -1,6 +1,6 @@
 # SeatRush
 
-SeatRush supports creating and viewing events, holding selected or best-available seats, releasing holds, and checking out. The web app, API documentation, and final Compose setup are not implemented yet.
+SeatRush supports creating and viewing events, holding selected or best-available seats, releasing holds, and checking out. The web app and final Compose setup are not implemented yet.
 
 ## Local development
 
@@ -21,6 +21,8 @@ npm run start:dev
 ```
 
 The API listens on port 3000 by default; set `PORT` to use another local port if needed. Run migrations after installing or updating the API; they are not run automatically yet. The environment values in `.env.example` are examples; the API reads environment variables from the process and does not load that file automatically.
+
+Interactive API documentation is available at `http://localhost:3000/docs`, and the OpenAPI JSON at `http://localhost:3000/docs-json`. Fan endpoints accept `X-Username` in the documentation UI.
 
 ## Events API
 
