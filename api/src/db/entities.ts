@@ -1,4 +1,4 @@
-import { Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('events')
 export class EventEntity {
@@ -24,51 +24,23 @@ export class EventEntity {
   seatsPerRow!: number;
 }
 
-@Entity('zones')
-@Unique(['eventId', 'zoneIndex'])
-export class ZoneEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
-  @Column('uuid', { name: 'event_id' })
+@Entity('seats')
+export class SeatEntity {
+  @PrimaryColumn('uuid', { name: 'event_id' })
   eventId!: string;
+
+  @PrimaryColumn('int', { name: 'row_index' })
+  rowIndex!: number;
+
+  @PrimaryColumn('int')
+  number!: number;
 
   @Column('int', { name: 'zone_index' })
   zoneIndex!: number;
 
   @Column('int', { name: 'price_agorot' })
   priceAgorot!: number;
-}
 
-@Entity('event_rows')
-@Unique(['eventId', 'rowIndex'])
-export class EventRowEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
-  @Column('uuid', { name: 'event_id' })
-  eventId!: string;
-
-  @Column('uuid', { name: 'zone_id' })
-  zoneId!: string;
-
-  @Column('int', { name: 'row_index' })
-  rowIndex!: number;
-
-}
-
-@Entity('seats')
-@Unique(['rowId', 'number'])
-export class SeatEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
-
-  @Column('uuid', { name: 'event_id' })
-  eventId!: string;
-
-  @Column('uuid', { name: 'row_id' })
-  rowId!: string;
-
-  @Column('int')
-  number!: number;
+  @Column('uuid', { name: 'hold_id', nullable: true })
+  holdId!: string | null;
 }

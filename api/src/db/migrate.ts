@@ -1,12 +1,12 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { CreateEvents1794048735619 } from './migrations/1794048735619-create-events';
+import { CreateSeatRushSchema1794048735619 } from './migrations/001-create-seatrush-schema';
 
 async function migrate() {
   const dataSource = new DataSource({
     type: 'postgres',
     url: process.env.DATABASE_URL,
-    migrations: [CreateEvents1794048735619],
+    migrations: [CreateSeatRushSchema1794048735619],
   });
   await dataSource.initialize();
   try {

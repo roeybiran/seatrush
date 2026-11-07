@@ -1,6 +1,6 @@
 # SeatRush
 
-SeatRush currently supports creating and viewing events and their seat maps. Holds, checkout, the web app, API documentation, and the final Compose setup are not implemented yet.
+SeatRush currently supports creating and viewing events, holding selected seats, and releasing holds. Best available, checkout, the web app, API documentation, and the final Compose setup are not implemented yet.
 
 ## Local development
 
@@ -32,7 +32,13 @@ curl -X POST http://localhost:3000/events \
   -d '{"name":"Opening Night","venue":"Main Hall","eventTime":"2030-07-01T20:00:00Z","dropTime":"2030-06-01T10:00:00Z","rowCount":3,"seatsPerRow":8,"zones":[{"startRow":0,"endRow":0,"priceAgorot":20000},{"startRow":1,"endRow":2,"priceAgorot":12000}]}'
 ```
 
-`GET /events` lists events, and `GET /events/:eventId` returns a seat map grouped into ordered rows with zone numbers, prices, and server time. Seats currently report `available`; holds and sales are not implemented. See [DECISIONS.md](DECISIONS.md) for input limits and assumptions.
+`GET /events` lists events, and `GET /events/:eventId` returns a seat map grouped into ordered rows with zone numbers, prices, and server time. Seats linked to an order report `sold`, seats with unexpired holds report `held`, and the rest report `available`. See [DECISIONS.md](DECISIONS.md) for input limits and assumptions.
+
+## Holds API
+
+Identify a fan with the `X-Username` header. Usernames are trimmed and case-sensitive; they are not authenticated and can be impersonated. `POST /events/:eventId/holds` accepts `{ "seats": [{ "rowIndex": 0, "seatNumber": 0 }] }` and holds one to four distinct seats together as one request. Row indexes and seat numbers are zero-based; the frontend will show seat numbers starting at 1. The response includes a hold ID, coordinates, prices, expiry, and server time. `DELETE /events/:eventId/holds/:holdId` releases an active hold belonging to that username.
+
+`HOLD_TTL_SECONDS` controls the lifetime (default 300) and `MAX_SEATS_PER_USER` controls the per-event limit (default 4). Both are positive integers read when the API starts. Released holds are deleted immediately; expired holds remain in the database but no longer block their seats. The limit also accounts for seats linked to an order, but checkout is not implemented yet.
 
 ## Tests
 
@@ -43,4 +49,4 @@ cd api
 npm test
 ```
 
-The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. The event API tests use a temporary PostgreSQL schema and remove it when complete. The configured database user needs permission to create schemas. Tests do not use or erase the existing event tables. The hold and real-PostgreSQL contention tests required by the assignment will be added with their features.
+The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. They use temporary PostgreSQL schemas and remove them when complete. The configured database user needs permission to create schemas. Tests do not use or erase the existing event tables. Checkout and best-available tests remain to be added.

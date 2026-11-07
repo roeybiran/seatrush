@@ -1,8 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { EventEntity, EventRowEntity, SeatEntity, ZoneEntity } from '../db/entities';
+import { EventEntity, SeatEntity } from '../db/entities';
 import { CreateEventDto } from './create-event.dto';
-import { rowLabel } from '../utils/row-label';
 
 @Injectable()
 export class EventsService {
@@ -19,20 +18,12 @@ export class EventsService {
         rowCount,
         seatsPerRow,
       });
-      const rowZones = new Map<number, string>();
+      const seats: Array<{ eventId: string; rowIndex: number; number: number; zoneIndex: number; priceAgorot: number }> = [];
       for (const [zoneIndex, zone] of input.zones.entries()) {
-        const saved = await manager.save(ZoneEntity, {
-          eventId: event.id, zoneIndex, priceAgorot: zone.priceAgorot,
-        });
-        for (let row = zone.startRow; row <= zone.endRow; row++) rowZones.set(row, saved.id);
-      }
-      const seats: Array<{ eventId: string; rowId: string; number: number }> = [];
-      for (let index = 0; index < rowCount; index++) {
-        const row = await manager.save(EventRowEntity, {
-          eventId: event.id, zoneId: rowZones.get(index)!, rowIndex: index,
-        });
-        for (let number = 1; number <= seatsPerRow; number++) {
-          seats.push({ eventId: event.id, rowId: row.id, number });
+        for (let rowIndex = zone.startRow; rowIndex <= zone.endRow; rowIndex++) {
+          for (let number = 0; number < seatsPerRow; number++) {
+            seats.push({ eventId: event.id, rowIndex, number, zoneIndex, priceAgorot: zone.priceAgorot });
+          }
         }
       }
       for (let start = 0; start < seats.length; start += 5000) {
@@ -52,39 +43,40 @@ export class EventsService {
   async detail(eventId: string) {
     const event = await this.dataSource.getRepository(EventEntity).findOneBy({ id: eventId });
     if (!event) throw new NotFoundException('Event not found.');
-    const [zones, rows, seats, time] = await Promise.all([
-      this.dataSource.getRepository(ZoneEntity).find({ where: { eventId }, order: { zoneIndex: 'ASC' } }),
-      this.dataSource.getRepository(EventRowEntity).find({ where: { eventId }, order: { rowIndex: 'ASC' } }),
-      this.dataSource.getRepository(SeatEntity).find({ where: { eventId }, order: { number: 'ASC' } }),
+    const [seats, time] = await Promise.all([
+      this.dataSource.query(`
+        SELECT seat.row_index AS "rowIndex", seat.number, seat.zone_index AS "zoneIndex",
+          seat.price_agorot AS "priceAgorot",
+          CASE WHEN orders.id IS NOT NULL THEN 'sold'
+               WHEN hold.expires_at > statement_timestamp() THEN 'held'
+               ELSE 'available' END AS status
+        FROM seats AS seat
+        LEFT JOIN holds AS hold ON hold.id = seat.hold_id AND hold.event_id = seat.event_id
+        LEFT JOIN orders ON orders.hold_id = hold.id
+        WHERE seat.event_id = $1 ORDER BY seat.row_index, seat.number
+      `, [eventId]) as Promise<Array<{ rowIndex: number; number: number; zoneIndex: number; priceAgorot: number; status: 'sold' | 'held' | 'available' }>>,
       this.dataSource.query('SELECT clock_timestamp() AS now') as Promise<Array<{ now: Date }>>,
     ]);
-    const seatsByRow = new Map<string, SeatEntity[]>();
+    const rows: Array<{ rowIndex: number; zoneNumber: number; seats: Array<{ seatNumber: number; status: 'sold' | 'held' | 'available' }> }> = [];
+    const zones: Array<{ number: number; priceAgorot: number; startRow: number; endRow: number }> = [];
     for (const seat of seats) {
-      const rowSeats = seatsByRow.get(seat.rowId) ?? [];
-      rowSeats.push(seat);
-      seatsByRow.set(seat.rowId, rowSeats);
+      if (!rows[seat.rowIndex]) {
+        rows[seat.rowIndex] = { rowIndex: seat.rowIndex, zoneNumber: seat.zoneIndex, seats: [] };
+      }
+      rows[seat.rowIndex].seats.push({ seatNumber: seat.number, status: seat.status });
+
+      if (!zones[seat.zoneIndex]) {
+        zones[seat.zoneIndex] = {
+          number: seat.zoneIndex, priceAgorot: seat.priceAgorot, startRow: seat.rowIndex, endRow: seat.rowIndex,
+        };
+      }
+      zones[seat.zoneIndex].endRow = seat.rowIndex;
     }
-    const zoneNumbers = new Map(zones.map((zone) => [zone.id, zone.zoneIndex]));
     return {
       ...event,
       serverTime: time[0].now,
-      zones: zones.map((zone) => {
-        const zoneRows = rows.filter((row) => row.zoneId === zone.id);
-        return { number: zone.zoneIndex, priceAgorot: zone.priceAgorot,
-          startRow: zoneRows[0]?.rowIndex, endRow: zoneRows.at(-1)?.rowIndex };
-      }),
-      rows: rows.map((row) => {
-        const label = rowLabel(row.rowIndex);
-        return {
-          label,
-          zoneNumber: zoneNumbers.get(row.zoneId),
-          seats: (seatsByRow.get(row.id) ?? []).map((seat) => ({
-            id: `${label}${seat.number}`,
-            number: seat.number,
-            status: 'available',
-          })),
-        };
-      }),
+      zones,
+      rows,
     };
   }
 }

@@ -63,18 +63,18 @@ describe('event API with PostgreSQL', () => {
     const event = response.body as {
       id: string; name: string; serverTime: string;
       zones: Array<{ number: number; startRow: number; endRow: number; priceAgorot: number }>;
-      rows: Array<{ label: string; zoneNumber: number; seats: Array<{ id: string; status: string }> }>;
+      rows: Array<{ rowIndex: number; zoneNumber: number; seats: Array<{ seatNumber: number; status: string }> }>;
     };
     expect(event.name).toBe('Opening Night');
     expect(Number.isNaN(Date.parse(event.serverTime))).toBe(false);
     expect(event.rows).toHaveLength(27);
-    expect([event.rows[0].label, event.rows[25].label, event.rows[26].label]).toEqual(['A', 'Z', 'AA']);
+    expect([event.rows[0].rowIndex, event.rows[25].rowIndex, event.rows[26].rowIndex]).toEqual([0, 25, 26]);
     const storedRows = await database.query(
-      'SELECT row_index FROM event_rows WHERE event_id = $1 ORDER BY row_index',
+      'SELECT DISTINCT row_index FROM seats WHERE event_id = $1 ORDER BY row_index',
       [event.id],
     );
     expect(storedRows.map((row: { row_index: number }) => row.row_index)).toEqual(Array.from({ length: 27 }, (_, index) => index));
-    expect(event.rows[26].seats.map((seat) => seat.id)).toEqual(['AA1', 'AA2']);
+    expect(event.rows[26].seats.map((seat) => seat.seatNumber)).toEqual([0, 1]);
     expect(event.rows.every((row) => row.seats.every((seat) => seat.status === 'available'))).toBe(true);
     const front = event.zones.find((zone) => zone.number === 0);
     const back = event.zones.find((zone) => zone.number === 1);
@@ -83,6 +83,12 @@ describe('event API with PostgreSQL', () => {
     expect([front?.startRow, front?.endRow, back?.startRow, back?.endRow]).toEqual([0, 1, 2, 26]);
     expect(event.rows[0].zoneNumber).toBe(0);
     expect(event.rows[26].zoneNumber).toBe(1);
+    const storedSeats = await database.query(
+      'SELECT row_index, number, zone_index, price_agorot FROM seats WHERE event_id = $1 AND number = 0 ORDER BY row_index',
+      [event.id],
+    );
+    expect(storedSeats[0]).toEqual({ row_index: 0, number: 0, zone_index: 0, price_agorot: 20000 });
+    expect(storedSeats[26]).toEqual({ row_index: 26, number: 0, zone_index: 1, price_agorot: 12000 });
 
     const detail = await request(app.getHttpServer()).get(`/events/${event.id}`).expect(200);
     expect(detail.body.id).toBe(event.id);
@@ -90,6 +96,23 @@ describe('event API with PostgreSQL', () => {
     expect(list.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: event.id })]));
     await request(app.getHttpServer()).get(`/events/${randomUUID()}`).expect(404);
     await request(app.getHttpServer()).get('/events/not-an-id').expect(400);
+  });
+
+  test('groups ordered rows when zones are provided out of row order', async () => {
+    const response = await request(app.getHttpServer()).post('/events').send({
+      name: 'Show', venue: 'Hall', eventTime: '2030-07-01T20:00:00Z',
+      dropTime: '2030-06-01T10:00:00Z', rowCount: 3, seatsPerRow: 2,
+      zones: [
+        { startRow: 1, endRow: 2, priceAgorot: 1000 },
+        { startRow: 0, endRow: 0, priceAgorot: 2000 },
+      ],
+    }).expect(201);
+    expect(response.body.zones).toEqual([
+      { number: 0, priceAgorot: 1000, startRow: 1, endRow: 2 },
+      { number: 1, priceAgorot: 2000, startRow: 0, endRow: 0 },
+    ]);
+    expect(response.body.rows.map((row: { zoneNumber: number }) => row.zoneNumber)).toEqual([1, 0, 0]);
+    expect(response.body.rows.map((row: { seats: unknown[] }) => row.seats.length)).toEqual([2, 2, 2]);
   });
 
   test('rejects invalid event and zone definitions without creating an event', async () => {
