@@ -1,0 +1,16 @@
+/PRD.md
+/TECH_DESIGN.md
+/Home Assignment · Junior Full Stack Developer.pdf
+
+# Dependencies and build output
+node_modules/
+dist/
+.test-dist/
+.next/
+coverage/
+
+# Local configuration and operating system files
+.env
+.env.*
+!.env.example
+.DS_Store
