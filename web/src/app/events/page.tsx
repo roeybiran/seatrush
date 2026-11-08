@@ -2,8 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays } from 'lucide-react';
+import { ArrowRight, CalendarDays, MapPin } from 'lucide-react';
 import { ContentUnavailable } from '@/components/ContentUnavailable';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { api, eventDate, type EventSummary } from '@/lib/api';
 
@@ -41,13 +51,22 @@ export default function Events() {
     <main id="main" className="page-width inner-page">
       <section id="events" className="events-section">
         <div className="section-heading">
-          <h1>Events</h1>
-          {events && <span>{events.length} events</span>}
+          <div>
+            <h1>Events</h1>
+            <p className="page-description">
+              Explore upcoming events and find your seats.
+            </p>
+          </div>
+          {events && (
+            <Badge variant="outline">
+              {events.length} {events.length === 1 ? 'event' : 'events'}
+            </Badge>
+          )}
         </div>
         {error && (
-          <div className="notice error" role="alert">
+          <Alert className="notice error" variant="destructive">
             {error}
-          </div>
+          </Alert>
         )}
         {!events && !error && <p className="loading">Loading events…</p>}
         {events?.length === 0 && (
@@ -64,28 +83,48 @@ export default function Events() {
               Math.ceil((new Date(event.dropTime).getTime() - now) / 1000),
             );
             return (
-              <article className="event-card" key={event.id}>
-                <h2>{event.name}</h2>
-                <div className="event-meta">
-                  <span>{eventDate(event.eventTime)}</span>
-                  <span>{event.venue}</span>
-                </div>
-                <div className="card-bottom">
-                  <span>
-                    {onSale
-                      ? 'On sale'
-                      : `On sale in ${Math.floor(remaining / 86400)}d ${Math.floor((remaining % 86400) / 3600)}h ${Math.floor((remaining % 3600) / 60)}m ${remaining % 60}s`}
-                  </span>
-                  <Link
-                    href={`/events/${event.id}`}
-                    className={buttonVariants({
-                      variant: 'outline',
-                      size: 'sm',
-                    })}
-                  >
-                    View event
-                  </Link>
-                </div>
+              <article key={event.id}>
+                <Card className="event-card">
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>{event.name}</h2>
+                    </CardTitle>
+                    <CardAction>
+                      <Badge variant={onSale ? 'secondary' : 'outline'}>
+                        {onSale ? 'On sale' : 'Coming soon'}
+                      </Badge>
+                    </CardAction>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="event-meta">
+                      <span>
+                        <CalendarDays aria-hidden="true" />
+                        {eventDate(event.eventTime)}
+                      </span>
+                      <span>
+                        <MapPin aria-hidden="true" />
+                        {event.venue}
+                      </span>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="event-footer">
+                    <span>
+                      {onSale
+                        ? 'On sale now'
+                        : `On sale in ${Math.floor(remaining / 86400)}d ${Math.floor((remaining % 86400) / 3600)}h ${Math.floor((remaining % 3600) / 60)}m ${remaining % 60}s`}
+                    </span>
+                    <Link
+                      href={`/events/${event.id}`}
+                      aria-label={`View event: ${event.name}`}
+                      className={buttonVariants({
+                        variant: 'outline',
+                        size: 'sm',
+                      })}
+                    >
+                      View event <ArrowRight aria-hidden="true" />
+                    </Link>
+                  </CardFooter>
+                </Card>
               </article>
             );
           })}

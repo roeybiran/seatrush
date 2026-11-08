@@ -1,8 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Ticket } from 'lucide-react';
+import { CalendarDays, MapPin, Ticket } from 'lucide-react';
 import { ContentUnavailable } from '@/components/ContentUnavailable';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useSession } from '@/components/SessionProvider';
 import { api, eventDate, money, rowLabel, type Order } from '@/lib/api';
@@ -44,10 +53,13 @@ export default function MyAccount() {
       <div className="section-heading">
         <div>
           <h1>My Tickets</h1>
+          <p className="page-description">
+            Your tickets and order details, all in one place.
+          </p>
         </div>
       </div>
       {error && (
-        <div className="notice error" role="alert">
+        <Alert className="notice error" variant="destructive">
           {error}
           <Button
             variant="outline"
@@ -56,7 +68,7 @@ export default function MyAccount() {
           >
             Try again
           </Button>
-        </div>
+        </Alert>
       )}
       {username && !orders && !error && (
         <p className="loading">Loading tickets…</p>
@@ -66,35 +78,52 @@ export default function MyAccount() {
       )}
       <div className="ticket-list">
         {orders?.map((order) => (
-          <article key={order.id} className="ticket-card">
-            <div className="ticket-content">
-              <h2>{order.event.name}</h2>
-              <div className="event-meta">
-                <span>{eventDate(order.event.eventTime)}</span>
-                <span>{order.event.venue}</span>
-              </div>
-              <div className="ticket-bottom">
-                <div>
-                  <span>YOUR SEATS</span>
-                  <strong>
-                    {order.seats
-                      .map(
-                        (seat) =>
-                          `${rowLabel(seat.rowIndex)}${seat.seatNumber + 1}`,
-                      )
-                      .join(' · ')}
-                  </strong>
+          <article key={order.id}>
+            <Card className="ticket-card">
+              <CardHeader>
+                <CardTitle>
+                  <h2>{order.event.name}</h2>
+                </CardTitle>
+                <CardAction>
+                  <Badge variant="secondary">
+                    <Ticket aria-hidden="true" /> Confirmed
+                  </Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <div className="event-meta">
+                  <span>
+                    <CalendarDays aria-hidden="true" />
+                    {eventDate(order.event.eventTime)}
+                  </span>
+                  <span>
+                    <MapPin aria-hidden="true" />
+                    {order.event.venue}
+                  </span>
                 </div>
-                <div>
-                  <span>TOTAL</span>
-                  <strong>{money(order.totalAgorot)}</strong>
+                <div className="ticket-bottom">
+                  <div>
+                    <span>YOUR SEATS</span>
+                    <strong>
+                      {order.seats
+                        .map(
+                          (seat) =>
+                            `${rowLabel(seat.rowIndex)}${seat.seatNumber + 1}`,
+                        )
+                        .join(' · ')}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>TOTAL</span>
+                    <strong>{money(order.totalAgorot)}</strong>
+                  </div>
+                  <div>
+                    <span>ORDER</span>
+                    <strong>#{order.id.slice(0, 8).toUpperCase()}</strong>
+                  </div>
                 </div>
-                <div>
-                  <span>ORDER</span>
-                  <strong>#{order.id.slice(0, 8).toUpperCase()}</strong>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </article>
         ))}
       </div>

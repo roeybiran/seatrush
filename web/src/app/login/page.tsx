@@ -7,7 +7,7 @@ export default function Login() {
   const router = useRouter();
 
   return (
-    <main id="main" className="page-width inner-page">
+    <main id="main" className="login-page">
       <UsernameForm
         onComplete={() => {
           const next = new URLSearchParams(window.location.search).get('next');

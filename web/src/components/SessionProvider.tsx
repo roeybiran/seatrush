@@ -9,7 +9,17 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { Ticket, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
 const Session = createContext<{
@@ -63,14 +73,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         <header className="site-header">
           <div className="header-inner">
             <Link href="/" className="brand" aria-label="SeatRush home">
+              <span className="brand-icon">
+                <Ticket aria-hidden="true" />
+              </span>
               SeatRush
             </Link>
             <nav aria-label="Main navigation" className="nav-links">
-              <Link href="/events">Events</Link>
-              <Link href="/my-tickets">My Tickets</Link>
+              <Link
+                href="/events"
+                aria-current={
+                  pathname.startsWith('/events') ? 'page' : undefined
+                }
+              >
+                Events
+              </Link>
+              <Link
+                href="/my-tickets"
+                aria-current={pathname === '/my-tickets' ? 'page' : undefined}
+              >
+                My Tickets
+              </Link>
             </nav>
             <div className="header-user">
-              <span>{username}</span>
+              <span className="header-username" title={username}>
+                {username}
+              </span>
               <Button
                 className="user-button"
                 type="button"
@@ -78,7 +105,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                 size="sm"
                 onClick={() => setUsername('')}
               >
-                Log out
+                <LogOut aria-hidden="true" /> Log out
               </Button>
             </div>
           </div>
@@ -104,23 +131,37 @@ export function UsernameForm({ onComplete }: { onComplete?: () => void }) {
         }
       }}
     >
-      <label htmlFor="username">Username</label>
-      <div className="username-row">
-        <Input
-          id="username"
-          name="username"
-          placeholder="Your username"
-          autoComplete="username"
-          autoCapitalize="none"
-          autoCorrect="off"
-          enterKeyHint="done"
-          spellCheck={false}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          required
-        />
-        <Button type="submit">Log in</Button>
-      </div>
+      <Card className="form-card">
+        <CardHeader>
+          <CardTitle>
+            <h1>Log in to SeatRush</h1>
+          </CardTitle>
+          <CardDescription>
+            Enter your username below to access your tickets.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Field>
+            <FieldLabel htmlFor="username">Username</FieldLabel>
+            <Input
+              id="username"
+              name="username"
+              placeholder="Your username"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              enterKeyHint="done"
+              spellCheck={false}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              required
+            />
+          </Field>
+        </CardContent>
+        <CardFooter>
+          <Button type="submit">Log in</Button>
+        </CardFooter>
+      </Card>
     </form>
   );
 }

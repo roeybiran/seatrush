@@ -1,4 +1,11 @@
 import type { ReactNode } from 'react';
+import {
+  Empty,
+  EmptyContent,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 
 export function ContentUnavailable({
   title,
@@ -10,14 +17,22 @@ export function ContentUnavailable({
   children?: ReactNode;
 }) {
   return (
-    <div className="empty-state">
-      {icon && (
-        <span className="empty-state-icon" aria-hidden="true">
-          {icon}
-        </span>
-      )}
-      <h2>{title}</h2>
-      {children}
-    </div>
+    <Empty className="empty-state">
+      <EmptyHeader>
+        {icon && (
+          <EmptyMedia
+            variant="icon"
+            className="empty-state-icon"
+            aria-hidden="true"
+          >
+            {icon}
+          </EmptyMedia>
+        )}
+        <EmptyTitle>
+          <h2>{title}</h2>
+        </EmptyTitle>
+      </EmptyHeader>
+      {children && <EmptyContent>{children}</EmptyContent>}
+    </Empty>
   );
 }
