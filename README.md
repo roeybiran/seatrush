@@ -18,7 +18,7 @@ Stop the services with `docker compose down`. The data volume is retained. A new
 
 ## Fan identification and known gaps
 
-Choose any username on the login screen; use Log out to switch. The username is kept in the browser tab's session storage, so separate tabs or windows can act as different fans. A fan's active hold is also loaded from the API, so the same fan can finish it from another tab or after a reload. The API uses the trimmed, case-sensitive `X-Username` header. This is an assignment simplification, not authentication: anyone can impersonate a username. Checkout is simulated and does not process payment.
+Choose any username on the login screen; use Log out to switch. The username is kept in the browser tab's session storage, so separate tabs or windows can act as different fans. A fan's active holds are also loaded from the API, so the same fan can finish one from another tab or after a reload; holds made in another tab are listed under "Your other holds". The API uses the trimmed, case-sensitive `X-Username` header. This is an assignment simplification, not authentication: anyone can impersonate a username. Checkout is simulated and does not process payment.
 
 The optional no-lone-seat rule and promo codes are not implemented. Events are created through the API; there is no admin screen. The event-level lock favors correctness over high-volume throughput, and the application has not been prepared for a production launch.
 
@@ -82,10 +82,10 @@ Identify a fan with the `X-Username` header. Usernames are trimmed and case-sens
 
 ## Tests
 
-The tests require Node.js and npm, API dependencies, and a reachable PostgreSQL database whose user can create schemas. For example, start the development database described above and install dependencies once with `npm --prefix api ci`. Then run this command from the project root:
+With Docker running, this one command from the project root builds the test image, starts the Compose PostgreSQL database if needed, and runs the whole suite:
 
 ```sh
-DATABASE_URL=postgresql://seatrush:seatrush@localhost:55432/seatrush npm --prefix api test
+docker compose run --rm --build test
 ```
 
-Use a different `DATABASE_URL` if your database is elsewhere. The Compose database is not published to the host, so this example uses the separate local development container. The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. They use temporary PostgreSQL schemas and remove them when complete; they do not use or erase existing event tables. The tests cover atomic holds, per-fan limits, expiry, the specified best-available example, checkout retries, ownership, and 50 competing requests for one seat.
+The `test` service sits behind a Compose profile, so `docker compose up` never starts it. To run the tests without Docker for the API, start the development database described above, install dependencies once with `npm --prefix api ci`, and run `DATABASE_URL=postgresql://seatrush:seatrush@localhost:55432/seatrush npm --prefix api test`; any PostgreSQL database whose user can create schemas works. The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. They use temporary PostgreSQL schemas and remove them when complete; they do not use or erase existing event tables. The tests cover atomic holds, per-fan limits, expiry, the specified best-available example, checkout retries, ownership, and 50 competing requests for one seat.

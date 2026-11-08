@@ -51,9 +51,18 @@ export class ApiError extends Error {
     message: string,
     public code?: string,
     public seats?: Array<{ rowIndex: number; seatNumber: number }>,
+    /** HTTP status; undefined when the server could not be reached. */
+    public status?: number,
   ) {
     super(message);
   }
+}
+
+let serverClockOffset = 0;
+
+/** Milliseconds to add to Date.now() to get the server's time, from the last response's Date header. */
+export function serverOffset() {
+  return serverClockOffset;
 }
 
 export async function api<T>(
@@ -77,14 +86,22 @@ export async function api<T>(
       'Could not reach the server. Please check your connection and try again.',
     );
   }
+  const date = Date.parse(response.headers.get('date') ?? '');
+  // The header has one-second precision; assume the middle of that second.
+  if (!Number.isNaN(date)) serverClockOffset = date + 500 - Date.now();
   const body = await response.json().catch(() => null);
   if (!response.ok) {
+    // Validation errors arrive as a list of readable messages.
+    const message = Array.isArray(body?.message)
+      ? body.message.join('. ')
+      : body?.message;
     throw new ApiError(
-      typeof body?.message === 'string'
-        ? body.message
+      typeof message === 'string' && message
+        ? message
         : 'Something went wrong. Please try again.',
       body?.code,
       body?.seats,
+      response.status,
     );
   }
   return body as T;

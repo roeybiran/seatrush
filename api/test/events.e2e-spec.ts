@@ -187,6 +187,8 @@ describe('event API with PostgreSQL', () => {
       { ...valid, name: ' ' },
       { ...valid, eventTime: 'not a time' },
       { ...valid, eventTime: '2030-02-30T20:00:00Z' },
+      { ...valid, dropTime: valid.eventTime },
+      { ...valid, dropTime: '2030-08-01T00:00:00Z' },
       { ...valid, rowCount: 0 },
       { ...valid, seatsPerRow: 1.5 },
       {

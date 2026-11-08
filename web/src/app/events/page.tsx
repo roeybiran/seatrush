@@ -15,7 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Alert } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
-import { api, eventDate, type EventSummary } from '@/lib/api';
+import { api, eventDate, serverOffset, type EventSummary } from '@/lib/api';
 
 export default function Events() {
   const [events, setEvents] = useState<EventSummary[] | null>(null);
@@ -30,7 +30,7 @@ export default function Events() {
           if (active) {
             setEvents(value);
             setError('');
-            setNow(Date.now());
+            setNow(Date.now() + serverOffset());
           }
         })
         .catch((reason) => {
@@ -38,7 +38,7 @@ export default function Events() {
         });
     load();
     const poll = setInterval(load, 10000);
-    const tick = setInterval(() => setNow(Date.now()), 1000);
+    const tick = setInterval(() => setNow(Date.now() + serverOffset()), 1000);
 
     return () => {
       active = false;

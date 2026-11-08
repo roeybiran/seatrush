@@ -77,6 +77,8 @@ function EventExperience({ eventId }: { eventId: string }) {
   const [loadError, setLoadError] = useState('');
   const [pollError, setPollError] = useState(false);
   const [orderId, setOrderId] = useState('');
+  // Every active hold this fan has for the event, including ones made in other tabs.
+  const [serverHolds, setServerHolds] = useState<Hold[]>([]);
   const storageKey = `seatrush-hold:${eventId}:${username}`;
   const storedHold = useSyncExternalStore(
     (notify) => {
@@ -113,6 +115,7 @@ function EventExperience({ eventId }: { eventId: string }) {
     async function syncHold() {
       const startedAt = Date.now();
       const holds = await api<Hold[]>(`/events/${eventId}/holds`, {}, username);
+      if (active) setServerHolds(holds);
       // Ignore a list fetched before this tab last held, released or checked out.
       if (!active || pending.current || holdChangedAt.current >= startedAt)
         return;
@@ -210,6 +213,11 @@ function EventExperience({ eventId }: { eventId: string }) {
   function saveHold(value: SavedHold | null) {
     holdChangedAt.current = Date.now();
     setNow(Date.now());
+    // A released or checked-out hold must not reappear as "other" before the next poll.
+    if (!value)
+      setServerHolds((previous) =>
+        previous.filter((item) => item.id !== currentSaved?.hold.id),
+      );
     if (value) sessionStorage.setItem(storageKey, JSON.stringify(value));
     else sessionStorage.removeItem(storageKey);
     window.dispatchEvent(new Event('seatrush-hold'));
@@ -246,9 +254,8 @@ function EventExperience({ eventId }: { eventId: string }) {
         reason.code === 'SEATS_UNAVAILABLE' &&
         reason.seats?.length
       ) {
-        setError(
-          `Someone just took ${reason.seats.map((seat) => `${rowLabel(seat.rowIndex)}${seat.seatNumber}`).join(', ')}. Please choose again.`,
-        );
+        // The server names who has the seats: a rival or this fan's other hold.
+        setError(`${reason.message} Please choose again.`);
         setSelected((previous) =>
           previous.filter(
             (seat) =>
@@ -289,7 +296,9 @@ function EventExperience({ eventId }: { eventId: string }) {
       await refresh().catch(() => setPollError(true));
     } catch (reason) {
       setError(
-        reason instanceof ApiError && !reason.code
+        // Only a lost connection or server failure leaves the outcome unknown.
+        reason instanceof ApiError &&
+          (reason.status === undefined || reason.status >= 500)
           ? `${reason.message} If checkout may have completed, try again to retrieve your order.`
           : reason instanceof Error
             ? reason.message
@@ -336,6 +345,11 @@ function EventExperience({ eventId }: { eventId: string }) {
     seats
       .map((seat) => `${rowLabel(seat.rowIndex)}${seat.seatNumber}`)
       .join(', ');
+  const otherHolds = serverHolds.filter(
+    (item) =>
+      item.id !== hold?.id &&
+      new Date(item.expiresAt).getTime() > now + clockOffset,
+  );
 
   return (
     <main id="main" className="page-width inner-page">
@@ -521,6 +535,43 @@ function EventExperience({ eventId }: { eventId: string }) {
               </Card>
             </section>
             <aside className="booking-sidebar" aria-label="Booking details">
+              {otherHolds.length > 0 && (
+                <Card className="sidebar-card">
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>Your other holds</h2>
+                    </CardTitle>
+                    <CardDescription>
+                      These seats are held for you, made in another tab or
+                      window, and count toward your seat limit.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {otherHolds.map((item) => (
+                      <div className="summary-line" key={item.id}>
+                        <span>{holdSeats(item.seats)}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => {
+                            setError('');
+                            saveHold({
+                              hold: item,
+                              clockOffset:
+                                new Date(item.serverTime).getTime() -
+                                Date.now(),
+                              checkoutAttempted: false,
+                            });
+                          }}
+                        >
+                          Show
+                        </Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
               {hold ? (
                 <Card className="sidebar-card">
                   <CardHeader>
@@ -608,6 +659,8 @@ function EventExperience({ eventId }: { eventId: string }) {
                     <p className="small-note">
                       No payment required. Your tickets will appear in My
                       Tickets.
+                      {secondsLeft > 0 &&
+                        ' To choose more seats, check out or release these first.'}
                     </p>
                   </CardContent>
                 </Card>

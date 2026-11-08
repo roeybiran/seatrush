@@ -9,6 +9,11 @@ export class CreateEventPipe implements PipeTransform<CreateEventDto> {
         'An event cannot have more than 100,000 seats.',
       );
     }
+    if (new Date(input.dropTime) >= new Date(input.eventTime)) {
+      throw new BadRequestException(
+        'The drop time must be before the event time.',
+      );
+    }
     const assignedRows = new Set<number>();
     for (const zone of input.zones) {
       if (zone.startRow > zone.endRow || zone.endRow >= input.rowCount) {

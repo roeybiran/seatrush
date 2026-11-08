@@ -181,26 +181,41 @@ export class HoldsService {
 
     // Find requested seats blocked by an unexpired hold or an order.
     // Join on both IDs to keep the seat and hold in the same event.
-    const taken: Array<{ row_index: number; number: number }> =
+    const taken: Array<{ row_index: number; number: number; mine: boolean }> =
       await manager.query(
         `
-      SELECT seat.row_index, seat.number FROM seats AS seat
+      SELECT seat.row_index, seat.number, hold.username = $5 AS mine FROM seats AS seat
       JOIN unnest($2::int[], $3::int[]) AS requested(row_index, number)
         ON requested.row_index = seat.row_index AND requested.number = seat.number
       JOIN holds AS hold ON hold.id = seat.hold_id AND hold.event_id = seat.event_id
       WHERE seat.event_id = $1
         AND (hold.expires_at > $4 OR EXISTS (SELECT 1 FROM orders WHERE orders.hold_id = hold.id))
+      ORDER BY seat.row_index, seat.number
     `,
-        [eventId, rowIndexes, seatNumbers, now],
+        [eventId, rowIndexes, seatNumbers, now, username],
       );
     if (taken.length) {
       const unavailable = taken.map((seat) => ({
         rowIndex: seat.row_index,
         seatNumber: seat.number,
       }));
+      // Tell a fan apart from a rival: their own seats are not "taken by someone".
+      const labels = (mine: boolean) =>
+        taken
+          .filter((seat) => seat.mine === mine)
+          .map((seat) =>
+            seatLabel({ rowIndex: seat.row_index, seatNumber: seat.number }),
+          )
+          .join(', ');
+      const message = [
+        labels(false) && `Someone just took ${labels(false)}.`,
+        labels(true) && `You already have ${labels(true)}.`,
+      ]
+        .filter(Boolean)
+        .join(' ');
       throw new ConflictException({
         code: 'SEATS_UNAVAILABLE',
-        message: `Someone just took ${unavailable.map(seatLabel).join(', ')}.`,
+        message,
         seats: unavailable,
       });
     }

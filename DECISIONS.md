@@ -24,6 +24,22 @@ The event lock serializes all inventory changes for the same event, including be
 
 - The application is timezone agnostic: it does not require a particular timezone or apply a venue-specific timezone. Input times use ISO 8601 dates; date-time values without an offset are interpreted in the API server's local timezone.
 - Fans are identified by a trimmed, case-sensitive username in `X-Username`. This is not authentication: anyone who knows a username can impersonate that fan.
+- An event's drop time must be before its event time; anything else is rejected with 400. Events cannot be edited or deleted after creation.
+- Zones are continuous row ranges that together cover every row exactly once. Zone numbers are zero-based in request order; the screens show them from 1. All rows in an event have the same number of seats.
+- The 1–4 seats in one hold may be anywhere in the event; they do not have to be adjacent. Only best available looks for side-by-side seats.
+- A fan may have several active holds for one event (for example from two tabs), as long as their held and bought seats stay within `MAX_SEATS_PER_USER`. Each hold is checked out separately and becomes its own order.
+- Held and sold seats are both refused with 409 `SEATS_UNAVAILABLE`. The message says "Someone just took B3." for another fan's seat and "You already have B3." for the fan's own.
+- Releasing works only for an active hold: an expired or checked-out hold returns 409. Expired holds are kept as records rather than deleted; only their seats become free again.
+- Checking out a hold that already has an order returns that order, even after the hold's expiry, so a retry after a dropped connection is safe. A hold with no order fails checkout from the moment it expires.
+- Best available with a zone number the event does not have, or a maximum price below every seat, returns 409 `NO_SEATS_AVAILABLE` rather than 400, since the request is valid but nothing matches.
+- Drop time and expiry use the PostgreSQL clock, not the API server's. The screens correct their countdowns using the server time from the API.
+
+## Stack and libraries
+
+- **API:** NestJS with `@nestjs/platform-express`, as the brief suggests. TypeORM (with `pg`) for the connection and versioned migrations; inventory queries are raw SQL so the locking and expiry predicates are explicit. `class-validator` and `class-transformer` validate request bodies through Nest's `ValidationPipe`. `@nestjs/swagger` generates `/docs` and `/docs-json` from the controllers and DTOs.
+- **Tests:** Vitest (with `unplugin-swc` and `@swc/core`, because Vitest's default transform doesn't emit the decorator metadata Nest needs), `@nestjs/testing` and Supertest, running against real PostgreSQL.
+- **Web:** Next.js 16 with React 19 and TypeScript, used as a client-rendered app whose `/api` rewrite proxies to the API, so the browser needs no CORS setup. Tailwind CSS 4 with shadcn/ui-style components built on `@base-ui/react`, plus `class-variance-authority`, `clsx` and `tailwind-merge` for component variants, and `lucide-react` for icons. No state library: React state and session storage are enough for one page at a time.
+- **Tooling:** ESLint with `typescript-eslint` and `eslint-config-next`, and Prettier.
 
 ## Before a real launch
 

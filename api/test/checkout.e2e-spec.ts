@@ -64,7 +64,7 @@ describe('best available and checkout with PostgreSQL', () => {
       .send({
         name: 'Show',
         venue: 'Hall',
-        eventTime: '2099-01-01T00:00:00Z',
+        eventTime: '2099-12-31T00:00:00Z',
         dropTime,
         rowCount: 2,
         seatsPerRow: 8,
@@ -469,7 +469,7 @@ describe('best available and checkout with PostgreSQL', () => {
           event: {
             name: 'Show',
             venue: 'Hall',
-            eventTime: '2099-01-01T00:00:00.000Z',
+            eventTime: '2099-12-31T00:00:00.000Z',
           },
           seats: [
             { rowIndex: 0, seatNumber: 1, priceAgorot: 2000 },
@@ -484,7 +484,7 @@ describe('best available and checkout with PostgreSQL', () => {
           event: {
             name: 'Show',
             venue: 'Hall',
-            eventTime: '2099-01-01T00:00:00.000Z',
+            eventTime: '2099-12-31T00:00:00.000Z',
           },
           seats: [{ rowIndex: 0, seatNumber: 3, priceAgorot: 2000 }],
           totalAgorot: 2000,

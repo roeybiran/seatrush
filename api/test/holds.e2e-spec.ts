@@ -66,7 +66,7 @@ describe('seat holds with PostgreSQL', () => {
       .send({
         name: 'Show',
         venue: 'Hall',
-        eventTime: '2099-01-01T00:00:00Z',
+        eventTime: '2099-12-31T00:00:00Z',
         dropTime,
         rowCount: 1,
         seatsPerRow: 8,
@@ -146,6 +146,19 @@ describe('seat holds with PostgreSQL', () => {
           seats: [{ rowIndex: 0, seatNumber: 1 }],
         }),
       );
+    // A fan's own held seat is not reported as taken by someone else.
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('X-Username', 'Alice')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
+      .expect(409)
+      .expect((response) =>
+        expect(response.body).toMatchObject({
+          code: 'SEATS_UNAVAILABLE',
+          message: 'You already have A1.',
+          seats: [{ rowIndex: 0, seatNumber: 1 }],
+        }),
+      );
     const map = await request(app.getHttpServer())
       .get(`/events/${eventId}`)
       .expect(200);
@@ -190,7 +203,7 @@ describe('seat holds with PostgreSQL', () => {
       .send({
         name: 'Show',
         venue: 'Hall',
-        eventTime: '2099-01-01T00:00:00Z',
+        eventTime: '2099-12-31T00:00:00Z',
         dropTime: '2000-01-01T00:00:00Z',
         rowCount: 27,
         seatsPerRow: 27,
