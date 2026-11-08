@@ -78,7 +78,9 @@ function EventExperience({ eventId }: { eventId: string }) {
   const [pollError, setPollError] = useState(false);
   const [orderId, setOrderId] = useState('');
   // Every active hold this fan has for the event, including ones made in other tabs.
-  const [serverHolds, setServerHolds] = useState<Hold[]>([]);
+  const [serverHolds, setServerHolds] = useState<
+    Array<{ hold: Hold; clockOffset: number }>
+  >([]);
   const storageKey = `seatrush-hold:${eventId}:${username}`;
   const storedHold = useSyncExternalStore(
     (notify) => {
@@ -115,7 +117,12 @@ function EventExperience({ eventId }: { eventId: string }) {
     async function syncHold() {
       const startedAt = Date.now();
       const holds = await api<Hold[]>(`/events/${eventId}/holds`, {}, username);
-      if (active) setServerHolds(holds);
+      const receivedAt = Date.now();
+      const timedHolds = holds.map((hold) => ({
+        hold,
+        clockOffset: new Date(hold.serverTime).getTime() - receivedAt,
+      }));
+      if (active) setServerHolds(timedHolds);
       // Ignore a list fetched before this tab last held, released or checked out.
       if (!active || pending.current || holdChangedAt.current >= startedAt)
         return;
@@ -124,13 +131,13 @@ function EventExperience({ eventId }: { eventId: string }) {
       try {
         saved = raw ? (JSON.parse(raw) as SavedHold) : null;
       } catch {}
-      const latest = holds.at(-1);
+      const latest = timedHolds.at(-1);
       if (!saved && latest) {
         sessionStorage.setItem(
           storageKey,
           JSON.stringify({
-            hold: latest,
-            clockOffset: new Date(latest.serverTime).getTime() - Date.now(),
+            hold: latest.hold,
+            clockOffset: latest.clockOffset,
             checkoutAttempted: false,
           } satisfies SavedHold),
         );
@@ -216,7 +223,7 @@ function EventExperience({ eventId }: { eventId: string }) {
     // A released or checked-out hold must not reappear as "other" before the next poll.
     if (!value)
       setServerHolds((previous) =>
-        previous.filter((item) => item.id !== currentSaved?.hold.id),
+        previous.filter((item) => item.hold.id !== currentSaved?.hold.id),
       );
     if (value) sessionStorage.setItem(storageKey, JSON.stringify(value));
     else sessionStorage.removeItem(storageKey);
@@ -347,8 +354,8 @@ function EventExperience({ eventId }: { eventId: string }) {
       .join(', ');
   const otherHolds = serverHolds.filter(
     (item) =>
-      item.id !== hold?.id &&
-      new Date(item.expiresAt).getTime() > now + clockOffset,
+      item.hold.id !== hold?.id &&
+      new Date(item.hold.expiresAt).getTime() > now + item.clockOffset,
   );
 
   return (
@@ -548,8 +555,8 @@ function EventExperience({ eventId }: { eventId: string }) {
                   </CardHeader>
                   <CardContent>
                     {otherHolds.map((item) => (
-                      <div className="summary-line" key={item.id}>
-                        <span>{holdSeats(item.seats)}</span>
+                      <div className="summary-line" key={item.hold.id}>
+                        <span>{holdSeats(item.hold.seats)}</span>
                         <Button
                           size="sm"
                           variant="outline"
@@ -557,10 +564,8 @@ function EventExperience({ eventId }: { eventId: string }) {
                           onClick={() => {
                             setError('');
                             saveHold({
-                              hold: item,
-                              clockOffset:
-                                new Date(item.serverTime).getTime() -
-                                Date.now(),
+                              hold: item.hold,
+                              clockOffset: item.clockOffset,
                               checkoutAttempted: false,
                             });
                           }}
