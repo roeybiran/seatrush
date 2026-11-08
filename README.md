@@ -1,6 +1,26 @@
 # SeatRush
 
-SeatRush supports creating and viewing events, holding selected or best-available seats, releasing holds, and checking out. The final Compose setup is not implemented yet.
+SeatRush supports creating and viewing events, holding selected or best-available seats, releasing holds, and checking out.
+
+## Quick start with Docker Compose
+
+With Docker and the Compose plugin running, and ports 3000 and 5173 free, start PostgreSQL, the API, and the web app from the project root:
+
+```sh
+docker compose up --build
+```
+
+Open `http://localhost:5173`, choose a username, and open the on-sale demo event. The API and its interactive documentation are at `http://localhost:3000` and `http://localhost:3000/docs`; the OpenAPI JSON is at `http://localhost:3000/docs-json`. On API startup, migrations run automatically and a demo event is created with its drop already open. The seed runs only when that demo event is absent, so restarts preserve its holds and orders. PostgreSQL data persists in a Compose volume across restarts.
+
+`HOLD_TTL_SECONDS` and `MAX_SEATS_PER_USER` default to 300 and 4. Set them in the shell or a root `.env` file before starting Compose to override them. Compose uses local development database credentials and exposes the web and API ports; the database is accessible only within the Compose network.
+
+Stop the services with `docker compose down`. The data volume is retained. A new database volume gets a fresh demo event; its event date is set one year after initial seeding.
+
+## Fan identification and known gaps
+
+Choose any username on the login screen; use Log out to switch. Usernames and active holds are kept in the browser tab's session storage, so separate tabs or windows can act as different fans. The API uses the trimmed, case-sensitive `X-Username` header. This is an assignment simplification, not authentication: anyone can impersonate a username. Checkout is simulated and does not process payment.
+
+The optional no-lone-seat rule and promo codes are not implemented. Events are created through the API; there is no admin screen. The event-level lock favors correctness over high-volume throughput, and the application has not been prepared for a production launch.
 
 ## Local development
 
@@ -20,7 +40,7 @@ npm run migration:run
 npm run start:dev
 ```
 
-The API listens on port 3000 by default; set `PORT` to use another local port if needed. Run migrations after installing or updating the API; they are not run automatically yet. The environment values in `.env.example` are examples; the API reads environment variables from the process and does not load that file automatically.
+The API listens on port 3000 by default; set `PORT` to use another local port if needed. When running outside Compose, run migrations manually after installing or updating the API. The environment values in `.env.example` are examples; the API reads environment variables from the process and does not load that file automatically.
 
 In a second terminal, start the web app on port 5173:
 
@@ -48,7 +68,7 @@ curl -X POST http://localhost:3000/events \
 
 ## Holds API
 
-Identify a fan with the `X-Username` header. Usernames are trimmed and case-sensitive; they are not authenticated and can be impersonated. `POST /events/:eventId/holds` accepts `{ "seats": [{ "rowIndex": 0, "seatNumber": 0 }] }` and holds one to four distinct seats together as one request. Row indexes and seat numbers are zero-based; the frontend will show seat numbers starting at 1. The response includes a hold ID, coordinates, prices, expiry, and server time. `DELETE /events/:eventId/holds/:holdId` releases an active hold belonging to that username.
+Identify a fan with the `X-Username` header. Usernames are trimmed and case-sensitive; they are not authenticated and can be impersonated. `POST /events/:eventId/holds` accepts `{ "seats": [{ "rowIndex": 0, "seatNumber": 0 }] }` and holds one to four distinct seats together as one request. Row indexes and seat numbers are zero-based; the frontend shows seat numbers starting at 1. The response includes a hold ID, coordinates, prices, expiry, and server time. `DELETE /events/:eventId/holds/:holdId` releases an active hold belonging to that username.
 
 `POST /events/:eventId/holds/best-available` accepts `{ "count": 2, "zoneNumber": 0, "maxPriceAgorot": 20000 }`; the zone and maximum price are optional. It holds consecutive seats in the closest eligible row, preferring the center and then the lower seat number. The response is the same as for a selected-seat hold.
 
@@ -62,11 +82,10 @@ Identify a fan with the `X-Username` header. Usernames are trimmed and case-sens
 
 ## Tests
 
-With `DATABASE_URL` set, run the test command from the project root:
+The tests require Node.js and npm, API dependencies, and a reachable PostgreSQL database whose user can create schemas. For example, start the development database described above and install dependencies once with `npm --prefix api ci`. Then run this command from the project root:
 
 ```sh
-cd api
-npm test
+DATABASE_URL=postgresql://seatrush:seatrush@localhost:55432/seatrush npm --prefix api test
 ```
 
-The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. They use temporary PostgreSQL schemas and remove them when complete. The configured database user needs permission to create schemas. Tests do not use or erase the existing event tables. The tests cover best-available ranking and filters, concurrent seat selection, checkout retries, ownership, expiry, and competing requests.
+Use a different `DATABASE_URL` if your database is elsewhere. The Compose database is not published to the host, so this example uses the separate local development container. The Vitest end-to-end tests live in `api/test` and use Nest's testing module and Supertest. They use temporary PostgreSQL schemas and remove them when complete; they do not use or erase existing event tables. The tests cover atomic holds, per-fan limits, expiry, the specified best-available example, checkout retries, ownership, and 50 competing requests for one seat.

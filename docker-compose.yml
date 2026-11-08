@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: seatrush
+      POSTGRES_PASSWORD: seatrush
+      POSTGRES_DB: seatrush
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U seatrush -d seatrush']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgresql://seatrush:seatrush@db:5432/seatrush
+      PORT: 3000
+      HOLD_TTL_SECONDS: ${HOLD_TTL_SECONDS:-300}
+      MAX_SEATS_PER_USER: ${MAX_SEATS_PER_USER:-4}
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c 'node dist/db/migrate.js && node dist/db/seed.js && exec node dist/main.js'
+
+  web:
+    build: ./web
+    ports:
+      - '5173:5173'
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
