@@ -6,14 +6,28 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
+import { positiveIntegerFromEnv } from '../config';
 import { BestAvailableDto } from './best-available.dto';
 import { CreateHoldDto } from './create-hold.dto';
 
+/** Formats a seat the way fans read it, e.g. row index 1, seat 7 -> "B7". */
+export function seatLabel(seat: { rowIndex: number; seatNumber: number }) {
+  let row = '';
+  for (
+    let value = seat.rowIndex + 1;
+    value > 0;
+    value = Math.floor((value - 1) / 26)
+  )
+    row = String.fromCharCode(65 + ((value - 1) % 26)) + row;
+  return `${row}${seat.seatNumber}`;
+}
+
 @Injectable()
 export class HoldsService {
-  private readonly ttlSeconds = Number(process.env.HOLD_TTL_SECONDS ?? 300);
-  private readonly maxSeatsPerUser = Number(
-    process.env.MAX_SEATS_PER_USER ?? 4,
+  private readonly ttlSeconds = positiveIntegerFromEnv('HOLD_TTL_SECONDS', 300);
+  private readonly maxSeatsPerUser = positiveIntegerFromEnv(
+    'MAX_SEATS_PER_USER',
+    4,
   );
 
   constructor(private readonly dataSource: DataSource) {}
@@ -65,8 +79,10 @@ export class HoldsService {
           coordinates.has(`${seat.row_index}:${seat.number + offset}`),
         ).every(Boolean);
         if (!consecutive) continue;
+        // Twice the distance between the block's middle, number + (count - 1) / 2,
+        // and the row's middle, (seats_per_row + 1) / 2, to stay in integers.
         const distance = Math.abs(
-          2 * seat.number + input.count - event.seats_per_row,
+          2 * seat.number + input.count - event.seats_per_row - 2,
         );
         if (!best || distance < best.distance) {
           best = {
@@ -127,10 +143,10 @@ export class HoldsService {
     for (const seat of input.seats) {
       if (
         seat.rowIndex >= event.row_count ||
-        seat.seatNumber >= event.seats_per_row
+        seat.seatNumber > event.seats_per_row
       ) {
         throw new BadRequestException(
-          `Seat at row ${seat.rowIndex}, number ${seat.seatNumber} does not exist in this event.`,
+          `Seat ${seatLabel(seat)} does not exist in this event.`,
         );
       }
     }
@@ -158,7 +174,7 @@ export class HoldsService {
       );
       if (!candidate)
         throw new BadRequestException(
-          `Seat at row ${seat.rowIndex}, number ${seat.seatNumber} does not exist in this event.`,
+          `Seat ${seatLabel(seat)} does not exist in this event.`,
         );
       return candidate;
     });
@@ -184,7 +200,7 @@ export class HoldsService {
       }));
       throw new ConflictException({
         code: 'SEATS_UNAVAILABLE',
-        message: 'Someone just took one or more selected seats.',
+        message: `Someone just took ${unavailable.map(seatLabel).join(', ')}.`,
         seats: unavailable,
       });
     }
@@ -235,6 +251,69 @@ export class HoldsService {
       expiresAt: hold.expires_at,
       serverTime: now,
     };
+  }
+
+  async active(eventId: string, username: string) {
+    // Lets a fan pick up their holds again in another tab or after a reload.
+    const rows: Array<{
+      id: string;
+      expires_at: Date;
+      now: Date;
+      row_index: number;
+      number: number;
+      price_agorot: number;
+    }> = await this.dataSource.query(
+      `
+      SELECT hold.id, hold.expires_at, now.now, seat.row_index, seat.number, seat.price_agorot
+      FROM (SELECT clock_timestamp() AS now) AS now
+      JOIN holds AS hold ON hold.expires_at > now.now
+      JOIN seats AS seat ON seat.hold_id = hold.id AND seat.event_id = hold.event_id
+      WHERE hold.event_id = $1 AND hold.username = $2
+        AND NOT EXISTS (SELECT 1 FROM orders WHERE orders.hold_id = hold.id)
+      ORDER BY hold.created_at, hold.id, seat.row_index, seat.number
+    `,
+      [eventId, username],
+    );
+    if (!rows.length) {
+      const events: unknown[] = await this.dataSource.query(
+        'SELECT 1 FROM events WHERE id = $1',
+        [eventId],
+      );
+      if (!events.length) throw new NotFoundException('Event not found.');
+    }
+    const holds = new Map<
+      string,
+      {
+        id: string;
+        eventId: string;
+        seats: Array<{
+          rowIndex: number;
+          seatNumber: number;
+          priceAgorot: number;
+        }>;
+        expiresAt: Date;
+        serverTime: Date;
+      }
+    >();
+    for (const row of rows) {
+      let hold = holds.get(row.id);
+      if (!hold) {
+        hold = {
+          id: row.id,
+          eventId,
+          seats: [],
+          expiresAt: row.expires_at,
+          serverTime: row.now,
+        };
+        holds.set(row.id, hold);
+      }
+      hold.seats.push({
+        rowIndex: row.row_index,
+        seatNumber: row.number,
+        priceAgorot: row.price_agorot,
+      });
+    }
+    return [...holds.values()];
   }
 
   async checkout(eventId: string, holdId: string, username: string) {

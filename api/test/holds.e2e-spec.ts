@@ -81,29 +81,29 @@ describe('seat holds with PostgreSQL', () => {
     await request(app.getHttpServer())
       .post(`/events/${future}/holds`)
       .set('X-Username', 'fan')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(409);
     const eventId = await createEvent();
     const endpoint = `/events/${eventId}/holds`;
     await request(app.getHttpServer())
       .post(endpoint)
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(400);
     for (const seats of [
       [],
       [
-        { rowIndex: 0, seatNumber: 0 },
-        { rowIndex: 0, seatNumber: 0 },
+        { rowIndex: 0, seatNumber: 1 },
+        { rowIndex: 0, seatNumber: 1 },
       ],
       Array.from({ length: 5 }, (_, index) => ({
         rowIndex: 0,
-        seatNumber: index,
+        seatNumber: index + 1,
       })),
-      [{ rowIndex: 0, seatNumber: 8 }],
+      [{ rowIndex: 0, seatNumber: 9 }],
       [{ rowIndex: 0, seatNumber: 2147483647 }],
-      [{ rowIndex: -1, seatNumber: 0 }],
-      [{ rowIndex: 1, seatNumber: 0 }],
-      [{ rowIndex: 0, seatNumber: -1 }],
+      [{ rowIndex: -1, seatNumber: 1 }],
+      [{ rowIndex: 1, seatNumber: 1 }],
+      [{ rowIndex: 0, seatNumber: 0 }],
     ]) {
       await request(app.getHttpServer())
         .post(endpoint)
@@ -119,26 +119,33 @@ describe('seat holds with PostgreSQL', () => {
     const first = await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', ' Alice ')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(201);
     expect(first.body.seats).toEqual([
-      { rowIndex: 0, seatNumber: 0, priceAgorot: 1000 },
+      { rowIndex: 0, seatNumber: 1, priceAgorot: 1000 },
     ]);
     expect(
       await database.query('SELECT number FROM seats WHERE hold_id = $1', [
         first.body.id,
       ]),
-    ).toEqual([{ number: 0 }]);
+    ).toEqual([{ number: 1 }]);
     await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'Bob')
       .send({
         seats: [
-          { rowIndex: 0, seatNumber: 0 },
           { rowIndex: 0, seatNumber: 1 },
+          { rowIndex: 0, seatNumber: 2 },
         ],
       })
-      .expect(409);
+      .expect(409)
+      .expect((response) =>
+        expect(response.body).toMatchObject({
+          code: 'SEATS_UNAVAILABLE',
+          message: 'Someone just took A1.',
+          seats: [{ rowIndex: 0, seatNumber: 1 }],
+        }),
+      );
     const map = await request(app.getHttpServer())
       .get(`/events/${eventId}`)
       .expect(200);
@@ -170,14 +177,14 @@ describe('seat holds with PostgreSQL', () => {
       .set('X-Username', 'Bob')
       .send({
         seats: [
-          { rowIndex: 0, seatNumber: 0 },
           { rowIndex: 0, seatNumber: 1 },
+          { rowIndex: 0, seatNumber: 2 },
         ],
       })
       .expect(201);
   });
 
-  test('matches exact coordinates across rows including row 26 and seat index 26', async () => {
+  test('matches exact coordinates across rows including row 26 and seat 27', async () => {
     const event = await request(app.getHttpServer())
       .post('/events')
       .send({
@@ -196,8 +203,8 @@ describe('seat holds with PostgreSQL', () => {
       .set('X-Username', 'first')
       .send({
         seats: [
-          { rowIndex: 0, seatNumber: 26 },
-          { rowIndex: 26, seatNumber: 0 },
+          { rowIndex: 0, seatNumber: 27 },
+          { rowIndex: 26, seatNumber: 1 },
         ],
       })
       .expect(201);
@@ -206,21 +213,21 @@ describe('seat holds with PostgreSQL', () => {
       .set('X-Username', 'second')
       .send({
         seats: [
-          { rowIndex: 0, seatNumber: 0 },
-          { rowIndex: 26, seatNumber: 26 },
+          { rowIndex: 0, seatNumber: 1 },
+          { rowIndex: 26, seatNumber: 27 },
         ],
       })
       .expect(201);
     expect(second.body.seats).toEqual([
-      { rowIndex: 0, seatNumber: 0, priceAgorot: 1000 },
-      { rowIndex: 26, seatNumber: 26, priceAgorot: 1000 },
+      { rowIndex: 0, seatNumber: 1, priceAgorot: 1000 },
+      { rowIndex: 26, seatNumber: 27, priceAgorot: 1000 },
     ]);
     const map = await request(app.getHttpServer())
       .get(`/events/${event.body.id}`)
       .expect(200);
     expect(map.body.rows[26].rowIndex).toBe(26);
     expect(map.body.rows[26].seats[26]).toEqual({
-      seatNumber: 26,
+      seatNumber: 27,
       status: 'held',
     });
   });
@@ -232,7 +239,7 @@ describe('seat holds with PostgreSQL', () => {
         request(app.getHttpServer())
           .post(`/events/${eventId}/holds`)
           .set('X-Username', `fan-${index}`)
-          .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }),
+          .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] }),
       ),
     );
     expect(results.filter((result) => result.status === 201)).toHaveLength(1);
@@ -251,7 +258,7 @@ describe('seat holds with PostgreSQL', () => {
         request(app.getHttpServer())
           .post(`/events/${eventId}/holds`)
           .set('X-Username', 'same-fan')
-          .send({ seats: [{ rowIndex: 0, seatNumber: index }] }),
+          .send({ seats: [{ rowIndex: 0, seatNumber: index + 1 }] }),
       ),
     );
     expect(results.filter((result) => result.status === 201)).toHaveLength(4);
@@ -264,7 +271,7 @@ describe('seat holds with PostgreSQL', () => {
     const hold = await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'fan')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(201);
     await delay(3200);
     const map = await request(app.getHttpServer())
@@ -278,7 +285,7 @@ describe('seat holds with PostgreSQL', () => {
     await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'other')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(201);
     const stored = await database.query('SELECT id FROM holds WHERE id = $1', [
       hold.body.id,
@@ -292,7 +299,7 @@ describe('seat holds with PostgreSQL', () => {
     const hold = await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'fan')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(201);
     await database.query(
       "UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1",
@@ -318,7 +325,7 @@ describe('seat holds with PostgreSQL', () => {
       .send({
         seats: Array.from({ length: 4 }, (_, index) => ({
           rowIndex: 0,
-          seatNumber: index,
+          seatNumber: index + 1,
         })),
       })
       .expect(201);
@@ -341,12 +348,12 @@ describe('seat holds with PostgreSQL', () => {
     await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'other')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(409);
     await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'fan')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 4 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 5 }] })
       .expect(409);
     await request(app.getHttpServer())
       .delete(`${endpoint}/${hold.body.id}`)
@@ -357,5 +364,64 @@ describe('seat holds with PostgreSQL', () => {
         hold.body.id,
       ]),
     ).toHaveLength(1);
+  });
+
+  test('lists only the fan’s active holds so another tab can resume them', async () => {
+    const eventId = await createEvent();
+    const endpoint = `/events/${eventId}/holds`;
+    const expired = await request(app.getHttpServer())
+      .post(endpoint)
+      .set('X-Username', 'fan')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
+      .expect(201);
+    await database.query(
+      "UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1",
+      [expired.body.id],
+    );
+    const active = await request(app.getHttpServer())
+      .post(endpoint)
+      .set('X-Username', 'fan')
+      .send({
+        seats: [
+          { rowIndex: 0, seatNumber: 3 },
+          { rowIndex: 0, seatNumber: 4 },
+        ],
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('X-Username', 'other')
+      .send({ seats: [{ rowIndex: 0, seatNumber: 6 }] })
+      .expect(201);
+
+    const listed = await request(app.getHttpServer())
+      .get(endpoint)
+      .set('X-Username', 'fan')
+      .expect(200);
+    expect(listed.body).toEqual([
+      {
+        id: active.body.id,
+        eventId,
+        seats: [
+          { rowIndex: 0, seatNumber: 3, priceAgorot: 1000 },
+          { rowIndex: 0, seatNumber: 4, priceAgorot: 1000 },
+        ],
+        expiresAt: active.body.expiresAt,
+        serverTime: expect.any(String),
+      },
+    ]);
+    await request(app.getHttpServer())
+      .post(`${endpoint}/${active.body.id}/checkout`)
+      .set('X-Username', 'fan')
+      .expect(201);
+    await request(app.getHttpServer())
+      .get(endpoint)
+      .set('X-Username', 'fan')
+      .expect(200, []);
+    await request(app.getHttpServer())
+      .get(`/events/${randomUUID()}/holds`)
+      .set('X-Username', 'fan')
+      .expect(404);
+    await request(app.getHttpServer()).get(endpoint).expect(400);
   });
 });

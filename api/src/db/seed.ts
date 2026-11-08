@@ -23,7 +23,7 @@ async function seed() {
         CASE WHEN row_index < 2 THEN 0 ELSE 1 END,
         CASE WHEN row_index < 2 THEN 20000 ELSE 12000 END
       FROM demo CROSS JOIN generate_series(0, 5) AS row_index
-        CROSS JOIN generate_series(0, 9) AS number
+        CROSS JOIN generate_series(1, 10) AS number
     `);
   } finally {
     await dataSource.destroy();

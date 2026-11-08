@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseUUIDPipe,
   Post,
@@ -39,6 +40,22 @@ import { Username } from './username.decorator';
 @Controller('events/:eventId/holds')
 export class HoldsController {
   constructor(private readonly holds: HoldsService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: "List the fan's active holds for this event",
+    description:
+      'Unexpired holds that have not been checked out, oldest first. Lets a fan resume a hold from another tab or device.',
+  })
+  @ApiOkResponse({ description: 'Active holds.', type: [HoldResponseDto] })
+  @ApiBadRequestResponse({ description: 'Invalid username or event ID.' })
+  @ApiNotFoundResponse({ description: 'Event not found.' })
+  active(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Username(UsernamePipe) username: string,
+  ): Promise<HoldResponseDto[]> {
+    return this.holds.active(eventId, username);
+  }
 
   @Post()
   @ApiOperation({ summary: 'Hold selected seats' })

@@ -8,7 +8,7 @@ async function bootstrap() {
   const config = new DocumentBuilder()
     .setTitle('SeatRush API')
     .setDescription(
-      'Seat coordinates and zone numbers are zero-based. Fan requests use the X-Username header.',
+      'Row indexes and zone numbers are zero-based (row index 0 is row A, nearest the stage). Seat numbers start at 1, so seat B7 is { rowIndex: 1, seatNumber: 7 }. Fan requests use the X-Username header.',
     )
     .setVersion('1.0')
     .build();

@@ -38,7 +38,7 @@ class ZoneResponseDto {
 }
 
 class MapSeatResponseDto {
-  @ApiProperty({ type: 'integer', minimum: 0 })
+  @ApiProperty({ type: 'integer', minimum: 1, description: 'Numbered from 1.' })
   seatNumber!: number;
 
   @ApiProperty({ enum: ['available', 'held', 'sold'] })

@@ -12,14 +12,22 @@ import {
 } from 'class-validator';
 
 class SeatCoordinateDto {
-  @ApiProperty({ type: 'integer', minimum: 0 })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    description: 'Zero-based row index: 0 is row A, nearest the stage.',
+  })
   @IsInt()
   @Min(0)
   rowIndex!: number;
 
-  @ApiProperty({ type: 'integer', minimum: 0 })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 1,
+    description: 'Seat number from 1, left to right (B7 has seatNumber 7).',
+  })
   @IsInt()
-  @Min(0)
+  @Min(1)
   seatNumber!: number;
 }
 
@@ -28,7 +36,7 @@ export class CreateHoldDto {
     type: [SeatCoordinateDto],
     minItems: 1,
     maxItems: 4,
-    description: 'Distinct zero-based seat coordinates.',
+    description: 'Distinct seats, e.g. B7 is { rowIndex: 1, seatNumber: 7 }.',
   })
   @IsArray()
   @ArrayMinSize(1)

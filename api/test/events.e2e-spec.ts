@@ -96,7 +96,7 @@ describe('event API with PostgreSQL', () => {
     expect(
       storedRows.map((row: { row_index: number }) => row.row_index),
     ).toEqual(Array.from({ length: 27 }, (_, index) => index));
-    expect(event.rows[26].seats.map((seat) => seat.seatNumber)).toEqual([0, 1]);
+    expect(event.rows[26].seats.map((seat) => seat.seatNumber)).toEqual([1, 2]);
     expect(
       event.rows.every((row) =>
         row.seats.every((seat) => seat.status === 'available'),
@@ -115,18 +115,18 @@ describe('event API with PostgreSQL', () => {
     expect(event.rows[0].zoneNumber).toBe(0);
     expect(event.rows[26].zoneNumber).toBe(1);
     const storedSeats = await database.query(
-      'SELECT row_index, number, zone_index, price_agorot FROM seats WHERE event_id = $1 AND number = 0 ORDER BY row_index',
+      'SELECT row_index, number, zone_index, price_agorot FROM seats WHERE event_id = $1 AND number = 1 ORDER BY row_index',
       [event.id],
     );
     expect(storedSeats[0]).toEqual({
       row_index: 0,
-      number: 0,
+      number: 1,
       zone_index: 0,
       price_agorot: 20000,
     });
     expect(storedSeats[26]).toEqual({
       row_index: 26,
-      number: 0,
+      number: 1,
       zone_index: 1,
       price_agorot: 12000,
     });

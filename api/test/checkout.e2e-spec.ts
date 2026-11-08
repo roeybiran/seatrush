@@ -183,7 +183,7 @@ describe('best available and checkout with PostgreSQL', () => {
       .expect(201);
     expect(
       middle.body.seats.map((seat: { seatNumber: number }) => seat.seatNumber),
-    ).toEqual([3, 4]);
+    ).toEqual([4, 5]);
     await request(app.getHttpServer())
       .delete(`${endpoint}/${middle.body.id}`)
       .set('X-Username', 'middle')
@@ -195,7 +195,7 @@ describe('best available and checkout with PostgreSQL', () => {
         .send({
           seats: Array.from({ length: 4 }, (_, offset) => ({
             rowIndex: 0,
-            seatNumber: start + offset,
+            seatNumber: start + offset + 1,
           })),
         })
         .expect(201);
@@ -205,8 +205,8 @@ describe('best available and checkout with PostgreSQL', () => {
       .set('X-Username', 'sold')
       .send({
         seats: [
-          { rowIndex: 1, seatNumber: 3 },
           { rowIndex: 1, seatNumber: 4 },
+          { rowIndex: 1, seatNumber: 5 },
         ],
       })
       .expect(201);
@@ -220,8 +220,8 @@ describe('best available and checkout with PostgreSQL', () => {
       .send({ count: 2 })
       .expect(201);
     expect(best.body.seats).toEqual([
-      { rowIndex: 1, seatNumber: 1, priceAgorot: 1000 },
       { rowIndex: 1, seatNumber: 2, priceAgorot: 1000 },
+      { rowIndex: 1, seatNumber: 3, priceAgorot: 1000 },
     ]);
   });
 
@@ -252,9 +252,9 @@ describe('best available and checkout with PostgreSQL', () => {
         seat.seatNumber,
       ]),
     ).toEqual([
-      [1, 2],
       [1, 3],
       [1, 4],
+      [1, 5],
     ]);
     await request(app.getHttpServer())
       .post(endpoint)
@@ -314,8 +314,8 @@ describe('best available and checkout with PostgreSQL', () => {
       .set('X-Username', 'owner')
       .send({
         seats: [
-          { rowIndex: 0, seatNumber: 0 },
-          { rowIndex: 1, seatNumber: 0 },
+          { rowIndex: 0, seatNumber: 1 },
+          { rowIndex: 1, seatNumber: 1 },
         ],
       })
       .expect(201);
@@ -363,7 +363,7 @@ describe('best available and checkout with PostgreSQL', () => {
     await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'other')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(409);
     await request(app.getHttpServer())
       .delete(`${endpoint}/${hold.body.id}`)
@@ -379,8 +379,8 @@ describe('best available and checkout with PostgreSQL', () => {
       .set('X-Username', 'first')
       .send({
         seats: [
-          { rowIndex: 0, seatNumber: 3 },
           { rowIndex: 0, seatNumber: 4 },
+          { rowIndex: 0, seatNumber: 5 },
         ],
       })
       .expect(201);
@@ -395,7 +395,7 @@ describe('best available and checkout with PostgreSQL', () => {
       .expect(201);
     expect(
       best.body.seats.map((seat: { seatNumber: number }) => seat.seatNumber),
-    ).toEqual([3, 4]);
+    ).toEqual([4, 5]);
     expect(
       await database.query('SELECT id FROM holds WHERE id = $1', [
         hold.body.id,
@@ -412,8 +412,8 @@ describe('best available and checkout with PostgreSQL', () => {
       .set('X-Username', 'account-owner')
       .send({
         seats: [
-          { rowIndex: 1, seatNumber: 1 },
-          { rowIndex: 0, seatNumber: 0 },
+          { rowIndex: 1, seatNumber: 2 },
+          { rowIndex: 0, seatNumber: 1 },
         ],
       })
       .expect(201);
@@ -424,7 +424,7 @@ describe('best available and checkout with PostgreSQL', () => {
     const secondHold = await request(app.getHttpServer())
       .post(`/events/${secondEventId}/holds`)
       .set('X-Username', 'account-owner')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 2 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 3 }] })
       .expect(201);
     const secondOrder = await request(app.getHttpServer())
       .post(`/events/${secondEventId}/holds/${secondHold.body.id}/checkout`)
@@ -433,7 +433,7 @@ describe('best available and checkout with PostgreSQL', () => {
     const otherHold = await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'someone-else')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 3 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 4 }] })
       .expect(201);
     await request(app.getHttpServer())
       .post(`${endpoint}/${otherHold.body.id}/checkout`)
@@ -442,7 +442,7 @@ describe('best available and checkout with PostgreSQL', () => {
     await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'account-owner')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 4 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 5 }] })
       .expect(201);
     await database.query(
       "UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1",
@@ -472,8 +472,8 @@ describe('best available and checkout with PostgreSQL', () => {
             eventTime: '2099-01-01T00:00:00.000Z',
           },
           seats: [
-            { rowIndex: 0, seatNumber: 0, priceAgorot: 2000 },
-            { rowIndex: 1, seatNumber: 1, priceAgorot: 1000 },
+            { rowIndex: 0, seatNumber: 1, priceAgorot: 2000 },
+            { rowIndex: 1, seatNumber: 2, priceAgorot: 1000 },
           ],
           totalAgorot: 3000,
         },
@@ -486,7 +486,7 @@ describe('best available and checkout with PostgreSQL', () => {
             venue: 'Hall',
             eventTime: '2099-01-01T00:00:00.000Z',
           },
-          seats: [{ rowIndex: 0, seatNumber: 2, priceAgorot: 2000 }],
+          seats: [{ rowIndex: 0, seatNumber: 3, priceAgorot: 2000 }],
           totalAgorot: 2000,
         },
       ]),
@@ -510,7 +510,7 @@ describe('best available and checkout with PostgreSQL', () => {
     const hold = await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'owner')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(201);
     const results = await Promise.all([
       request(app.getHttpServer())
@@ -519,7 +519,7 @@ describe('best available and checkout with PostgreSQL', () => {
       request(app.getHttpServer())
         .post(endpoint)
         .set('X-Username', 'other')
-        .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }),
+        .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] }),
     ]);
     expect(results.map((response) => response.status)).toEqual([201, 409]);
     expect(
@@ -535,7 +535,7 @@ describe('best available and checkout with PostgreSQL', () => {
     const hold = await request(app.getHttpServer())
       .post(endpoint)
       .set('X-Username', 'owner')
-      .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] })
+      .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] })
       .expect(201);
     await database.query(
       "UPDATE holds SET expires_at = clock_timestamp() - interval '1 second' WHERE id = $1",
@@ -548,7 +548,7 @@ describe('best available and checkout with PostgreSQL', () => {
       request(app.getHttpServer())
         .post(endpoint)
         .set('X-Username', 'other')
-        .send({ seats: [{ rowIndex: 0, seatNumber: 0 }] }),
+        .send({ seats: [{ rowIndex: 0, seatNumber: 1 }] }),
     ]);
     expect(results.map((response) => response.status)).toEqual([409, 201]);
     expect(

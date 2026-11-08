@@ -48,6 +48,8 @@ type SavedHold = {
   checkoutAttempted: boolean;
 };
 
+const zoneColor = (zone: number) => `var(--zone-${zone % 6})`;
+
 export default function EventPage({
   params,
 }: {
@@ -70,6 +72,7 @@ function EventExperience({ eventId }: { eventId: string }) {
   const [maxPrice, setMaxPrice] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const holdChangedAt = useRef(0);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [pollError, setPollError] = useState(false);
@@ -105,9 +108,48 @@ function EventExperience({ eventId }: { eventId: string }) {
 
   useEffect(() => {
     let active = true;
+    // Keep this tab's hold in step with the server, so a hold made in another tab
+    // (or before a reload) can be finished here, and one released elsewhere disappears.
+    async function syncHold() {
+      const startedAt = Date.now();
+      const holds = await api<Hold[]>(`/events/${eventId}/holds`, {}, username);
+      // Ignore a list fetched before this tab last held, released or checked out.
+      if (!active || pending.current || holdChangedAt.current >= startedAt)
+        return;
+      const raw = sessionStorage.getItem(storageKey);
+      let saved: SavedHold | null = null;
+      try {
+        saved = raw ? (JSON.parse(raw) as SavedHold) : null;
+      } catch {}
+      const latest = holds.at(-1);
+      if (!saved && latest) {
+        sessionStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            hold: latest,
+            clockOffset: new Date(latest.serverTime).getTime() - Date.now(),
+            checkoutAttempted: false,
+          } satisfies SavedHold),
+        );
+      } else if (
+        saved &&
+        !saved.checkoutAttempted &&
+        new Date(saved.hold.expiresAt).getTime() >
+          Date.now() + saved.clockOffset &&
+        !holds.some((item) => item.id === saved.hold.id)
+      ) {
+        sessionStorage.removeItem(storageKey);
+      } else return;
+      setNow(Date.now());
+      window.dispatchEvent(new Event('seatrush-hold'));
+    }
+
     async function load() {
       try {
-        const value = await api<EventDetail>(`/events/${eventId}`);
+        const [value] = await Promise.all([
+          api<EventDetail>(`/events/${eventId}`),
+          username ? syncHold() : undefined,
+        ]);
         if (active) {
           setEvent(value);
           setNow(Date.now());
@@ -133,7 +175,7 @@ function EventExperience({ eventId }: { eventId: string }) {
       clearInterval(poll);
       clearInterval(tick);
     };
-  }, [eventId]);
+  }, [eventId, storageKey, username]);
 
   const hold = currentSaved?.hold ?? null;
   const secondsLeft = hold
@@ -166,6 +208,7 @@ function EventExperience({ eventId }: { eventId: string }) {
     0,
   );
   function saveHold(value: SavedHold | null) {
+    holdChangedAt.current = Date.now();
     setNow(Date.now());
     if (value) sessionStorage.setItem(storageKey, JSON.stringify(value));
     else sessionStorage.removeItem(storageKey);
@@ -204,7 +247,7 @@ function EventExperience({ eventId }: { eventId: string }) {
         reason.seats?.length
       ) {
         setError(
-          `Someone just took ${reason.seats.map((seat) => `${rowLabel(seat.rowIndex)}${seat.seatNumber + 1}`).join(', ')}. Please choose again.`,
+          `Someone just took ${reason.seats.map((seat) => `${rowLabel(seat.rowIndex)}${seat.seatNumber}`).join(', ')}. Please choose again.`,
         );
         setSelected((previous) =>
           previous.filter(
@@ -291,7 +334,7 @@ function EventExperience({ eventId }: { eventId: string }) {
 
   const holdSeats = (seats: Seat[] | Coordinate[]) =>
     seats
-      .map((seat) => `${rowLabel(seat.rowIndex)}${seat.seatNumber + 1}`)
+      .map((seat) => `${rowLabel(seat.rowIndex)}${seat.seatNumber}`)
       .join(', ');
 
   return (
@@ -364,55 +407,80 @@ function EventExperience({ eventId }: { eventId: string }) {
                     tabIndex={0}
                   >
                     <div className="seat-map">
-                      {event.rows.map((row) => (
-                        <div className="seat-row" key={row.rowIndex}>
-                          <span className="row-label">
-                            {rowLabel(row.rowIndex)}
-                          </span>
-                          {row.seats.map((seat) => {
-                            const isSelected = selected.some(
-                              (item) =>
-                                item.rowIndex === row.rowIndex &&
-                                item.seatNumber === seat.seatNumber,
-                            );
-                            const isMine =
-                              hold?.seats.some(
-                                (item) =>
-                                  item.rowIndex === row.rowIndex &&
-                                  item.seatNumber === seat.seatNumber,
-                              ) && secondsLeft > 0;
-                            return (
-                              <Button
-                                variant="outline"
-                                key={seat.seatNumber}
-                                type="button"
-                                className={`seat disabled:opacity-100 seat-${isMine ? 'mine' : isSelected ? 'selected' : seat.status}`}
-                                disabled={
-                                  seat.status !== 'available' ||
-                                  !!hold ||
-                                  !dropOpen ||
-                                  !username ||
-                                  busy
-                                }
-                                aria-pressed={isSelected}
-                                aria-label={`Row ${rowLabel(row.rowIndex)}, seat ${seat.seatNumber + 1}, ${isMine ? 'your hold' : isSelected ? 'selected' : seat.status}`}
-                                title={`${rowLabel(row.rowIndex)}${seat.seatNumber + 1} · ${isMine ? 'your hold' : seat.status}`}
-                                onClick={() =>
-                                  toggle({
-                                    rowIndex: row.rowIndex,
-                                    seatNumber: seat.seatNumber,
-                                  })
-                                }
-                              >
-                                {seat.seatNumber + 1}
-                              </Button>
-                            );
-                          })}
-                          <span className="row-label">
-                            {rowLabel(row.rowIndex)}
-                          </span>
-                        </div>
-                      ))}
+                      {event.rows.map((row, index) => {
+                        const zone = event.zones[row.zoneNumber];
+                        const startsZone =
+                          index === 0 ||
+                          event.rows[index - 1].zoneNumber !== row.zoneNumber;
+                        return (
+                          <div
+                            key={row.rowIndex}
+                            style={
+                              {
+                                '--zone': zoneColor(row.zoneNumber),
+                              } as React.CSSProperties
+                            }
+                          >
+                            {startsZone && zone && (
+                              <div className="zone-heading">
+                                <span
+                                  className="zone-swatch"
+                                  aria-hidden="true"
+                                />
+                                Zone {zone.number + 1}
+                                <strong>{money(zone.priceAgorot)}</strong>
+                              </div>
+                            )}
+                            <div className="seat-row">
+                              <span className="row-label">
+                                {rowLabel(row.rowIndex)}
+                              </span>
+                              {row.seats.map((seat) => {
+                                const isSelected = selected.some(
+                                  (item) =>
+                                    item.rowIndex === row.rowIndex &&
+                                    item.seatNumber === seat.seatNumber,
+                                );
+                                const isMine =
+                                  hold?.seats.some(
+                                    (item) =>
+                                      item.rowIndex === row.rowIndex &&
+                                      item.seatNumber === seat.seatNumber,
+                                  ) && secondsLeft > 0;
+                                return (
+                                  <Button
+                                    variant="outline"
+                                    key={seat.seatNumber}
+                                    type="button"
+                                    className={`seat disabled:opacity-100 seat-${isMine ? 'mine' : isSelected ? 'selected' : seat.status}`}
+                                    disabled={
+                                      seat.status !== 'available' ||
+                                      !!hold ||
+                                      !dropOpen ||
+                                      !username ||
+                                      busy
+                                    }
+                                    aria-pressed={isSelected}
+                                    aria-label={`Row ${rowLabel(row.rowIndex)}, seat ${seat.seatNumber}, zone ${row.zoneNumber + 1}, ${isMine ? 'your hold' : isSelected ? 'selected' : seat.status}`}
+                                    title={`${rowLabel(row.rowIndex)}${seat.seatNumber} · ${isMine ? 'your hold' : seat.status}`}
+                                    onClick={() =>
+                                      toggle({
+                                        rowIndex: row.rowIndex,
+                                        seatNumber: seat.seatNumber,
+                                      })
+                                    }
+                                  >
+                                    {seat.seatNumber}
+                                  </Button>
+                                );
+                              })}
+                              <span className="row-label">
+                                {rowLabel(row.rowIndex)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                   <div className="legend">
@@ -431,7 +499,15 @@ function EventExperience({ eventId }: { eventId: string }) {
                   </div>
                   <div className="zones">
                     {event.zones.map((item) => (
-                      <span key={item.number}>
+                      <span
+                        key={item.number}
+                        style={
+                          {
+                            '--zone': zoneColor(item.number),
+                          } as React.CSSProperties
+                        }
+                      >
+                        <i className="zone-swatch" aria-hidden="true" />
                         Zone {item.number + 1}{' '}
                         <strong>{money(item.priceAgorot)}</strong>{' '}
                         <small>

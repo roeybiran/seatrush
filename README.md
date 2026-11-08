@@ -18,7 +18,7 @@ Stop the services with `docker compose down`. The data volume is retained. A new
 
 ## Fan identification and known gaps
 
-Choose any username on the login screen; use Log out to switch. Usernames and active holds are kept in the browser tab's session storage, so separate tabs or windows can act as different fans. The API uses the trimmed, case-sensitive `X-Username` header. This is an assignment simplification, not authentication: anyone can impersonate a username. Checkout is simulated and does not process payment.
+Choose any username on the login screen; use Log out to switch. The username is kept in the browser tab's session storage, so separate tabs or windows can act as different fans. A fan's active hold is also loaded from the API, so the same fan can finish it from another tab or after a reload. The API uses the trimmed, case-sensitive `X-Username` header. This is an assignment simplification, not authentication: anyone can impersonate a username. Checkout is simulated and does not process payment.
 
 The optional no-lone-seat rule and promo codes are not implemented. Events are created through the API; there is no admin screen. The event-level lock favors correctness over high-volume throughput, and the application has not been prepared for a production launch.
 
@@ -50,7 +50,7 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. The web app proxies API requests to `http://127.0.0.1:3000`; set `API_URL` before starting Next.js if the API runs elsewhere. Usernames and active holds are stored in the browser tab’s session storage, so two windows can use different names. The app polls the seat map every five seconds.
+Open `http://localhost:5173`. The web app proxies API requests to `http://127.0.0.1:3000`; set `API_URL` before starting Next.js if the API runs elsewhere. Usernames are stored in the browser tab’s session storage, so two windows can use different names. The app polls the seat map and the fan's active holds every five seconds.
 
 Interactive API documentation is available at `http://localhost:3000/docs`, and the OpenAPI JSON at `http://localhost:3000/docs-json`. Fan endpoints accept `X-Username` in the documentation UI.
 
@@ -68,13 +68,13 @@ curl -X POST http://localhost:3000/events \
 
 ## Holds API
 
-Identify a fan with the `X-Username` header. Usernames are trimmed and case-sensitive; they are not authenticated and can be impersonated. `POST /events/:eventId/holds` accepts `{ "seats": [{ "rowIndex": 0, "seatNumber": 0 }] }` and holds one to four distinct seats together as one request. Row indexes and seat numbers are zero-based; the frontend shows seat numbers starting at 1. The response includes a hold ID, coordinates, prices, expiry, and server time. `DELETE /events/:eventId/holds/:holdId` releases an active hold belonging to that username.
+Identify a fan with the `X-Username` header. Usernames are trimmed and case-sensitive; they are not authenticated and can be impersonated. `POST /events/:eventId/holds` accepts `{ "seats": [{ "rowIndex": 1, "seatNumber": 7 }] }` and holds one to four distinct seats together as one request. Row indexes are zero-based (0 is row A, nearest the stage) and seat numbers start at 1, so the example holds seat B7. If a seat is taken the API answers 409 with a message such as "Someone just took B7." and the taken seats in `seats`. The response includes a hold ID, coordinates, prices, expiry, and server time. `DELETE /events/:eventId/holds/:holdId` releases an active hold belonging to that username. `GET /events/:eventId/holds` lists that username's active holds for the event (unexpired and not checked out), which lets a fan resume a hold in another tab.
 
 `POST /events/:eventId/holds/best-available` accepts `{ "count": 2, "zoneNumber": 0, "maxPriceAgorot": 20000 }`; the zone and maximum price are optional. It holds consecutive seats in the closest eligible row, preferring the center and then the lower seat number. The response is the same as for a selected-seat hold.
 
 `POST /events/:eventId/holds/:holdId/checkout` creates an order for an unexpired hold owned by the supplied username. Its response contains the order ID, hold and event IDs, seat coordinates and prices, and total in agorot. Repeating checkout returns the same order, even after the hold has expired.
 
-`HOLD_TTL_SECONDS` controls the lifetime (default 300) and `MAX_SEATS_PER_USER` controls the per-event limit (default 4). Both are positive integers read when the API starts. Released holds are deleted immediately; expired holds remain in the database but no longer block their seats. The limit also accounts for seats linked to an order.
+`HOLD_TTL_SECONDS` controls the lifetime (default 300) and `MAX_SEATS_PER_USER` controls the per-event limit (default 4). Both must be positive integers; they are read when the API starts, and the API refuses to start if either is invalid. Released holds are deleted immediately; expired holds remain in the database but no longer block their seats. The limit also accounts for seats linked to an order.
 
 ## Account API
 

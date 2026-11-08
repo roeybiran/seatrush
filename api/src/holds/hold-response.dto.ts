@@ -1,10 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class PricedSeatResponseDto {
-  @ApiProperty({ type: 'integer', minimum: 0 })
+  @ApiProperty({ type: 'integer', minimum: 0, description: '0 is row A.' })
   rowIndex!: number;
 
-  @ApiProperty({ type: 'integer', minimum: 0 })
+  @ApiProperty({ type: 'integer', minimum: 1, description: 'Numbered from 1.' })
   seatNumber!: number;
 
   @ApiProperty({ type: 'integer', minimum: 0, description: 'Price in agorot.' })

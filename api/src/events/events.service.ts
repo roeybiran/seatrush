@@ -31,7 +31,7 @@ export class EventsService {
           rowIndex <= zone.endRow;
           rowIndex++
         ) {
-          for (let number = 0; number < seatsPerRow; number++) {
+          for (let number = 1; number <= seatsPerRow; number++) {
             seats.push({
               eventId: event.id,
               rowIndex,

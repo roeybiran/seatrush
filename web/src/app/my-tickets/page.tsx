@@ -108,7 +108,7 @@ export default function MyAccount() {
                       {order.seats
                         .map(
                           (seat) =>
-                            `${rowLabel(seat.rowIndex)}${seat.seatNumber + 1}`,
+                            `${rowLabel(seat.rowIndex)}${seat.seatNumber}`,
                         )
                         .join(' · ')}
                     </strong>

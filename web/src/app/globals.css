@@ -35,6 +35,12 @@
   --destructive: #b91c1c;
   --seat-held: #d4d4d8;
   --seat-sold: #a1a1aa;
+  --zone-0: #b45309;
+  --zone-1: #1d4ed8;
+  --zone-2: #047857;
+  --zone-3: #be185d;
+  --zone-4: #6d28d9;
+  --zone-5: #0e7490;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -52,6 +58,12 @@
     --destructive: #fca5a5;
     --seat-held: #71717a;
     --seat-sold: #52525b;
+    --zone-0: #fbbf24;
+    --zone-1: #60a5fa;
+    --zone-2: #34d399;
+    --zone-3: #f472b6;
+    --zone-4: #a78bfa;
+    --zone-5: #22d3ee;
   }
 }
 
@@ -406,6 +418,31 @@ h2 {
   place-items: center;
   flex: none;
   font-weight: 600;
+  color: var(--zone);
+}
+/* Each zone gets its own colour: a heading above its first row and an underline on its seats. */
+.zone-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+.zone-heading strong {
+  color: var(--foreground);
+}
+.zone-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  display: inline-block;
+  border-radius: 999px;
+  background: var(--zone);
+}
+.seat.seat {
+  border-bottom: 3px solid var(--zone);
 }
 .seat {
   width: 2rem;
@@ -485,6 +522,11 @@ h2 {
   padding-top: 1rem;
   font-size: 0.875rem;
   color: var(--muted-foreground);
+}
+.zones span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 .zones strong {
   color: var(--foreground);
