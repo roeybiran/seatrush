@@ -83,6 +83,7 @@ Commit and return order
 
 - Real authentication and authentication.
 - Observability and logging.
+- Replace polling with WebSockets for live seat updates.
 
 ## Two short answers
 
